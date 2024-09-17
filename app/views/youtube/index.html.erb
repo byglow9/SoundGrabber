@@ -1,0 +1,18 @@
+<h1>Baixar Áudio do YouTube</h1>
+
+<%= form_with url: download_audio_path, method: :post do |f| %>
+  <div>
+    <%= f.label :url, "URL do Vídeo" %>
+    <%= f.text_field :url %>
+  </div>
+
+  <div>
+    <%= f.submit "Baixar Áudio" %>
+  </div>
+<% end %>
+
+<% if flash[:notice] %>
+  <p><%= flash[:notice] %></p>
+<% elsif flash[:alert] %>
+  <p><%= flash[:alert] %></p>
+<% end %>
