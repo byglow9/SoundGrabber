@@ -420,17 +420,19 @@ Not applicable in the "library version drift" sense — this phase uses only alr
 | A5 | Proposed new REQ-ID category names `SUBMIT-*` (functional) and `SEC-SUBMIT-*` (security) for the new v1.4 REQUIREMENTS.md section — no existing convention in REQUIREMENTS.md covers submission/curation features, so this is a new category name choice | Phase Requirements section below | Low — cosmetic; easy to rename before REQUIREMENTS.md is finalized if planner prefers different prefixes |
 | A6 | `featured:next` derived document carries a `source_submission_id` field for traceability back to the originating submission | Code Examples (promote) | Low — convenience field, not required by any locked decision; omitting it just loses an audit trail |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Should editing a submission after it has been promoted (staged to `featured:next`) automatically re-derive `featured:next`, or does the operator have to re-promote?**
    - What we know: D-07 says editing changes the submission in-place, and promoting derives a featured document. Nothing in CONTEXT.md specifies whether these two are meant to stay in sync after the fact.
    - What's unclear: If an operator edits a submission's `descricao` after already promoting it, does `featured:next` silently go stale (showing the old text when published), or does the edit action need to detect "this submission is currently the promoted one" and re-derive?
    - Recommendation: Simplest correct behavior — re-derive `featured:next` from the submission's current fields every time `/promote` is called (idempotent), and treat "edit" as always only touching the submission record. Document that if an operator edits *after* promoting, they must re-click "Promover" before publishing, or the plan should make the edit endpoint auto-refresh `featured:next` when the edited submission's status is already `promovida`. Flag this for the planner to pick one and encode it as a task-level decision.
+   - RESOLVED: Plan 16-04 (interfaces + Task 1) locks the idempotent re-derive — `/yonkou/submissions/{id}/promote` re-derives `featured:next` from the submission's current fields on every call; editing only touches the submission record. Operator re-promotes after editing before publishing.
 
 2. **Format validation strictness for `instagram`/`telefone`/`email` contact fields.**
    - What we know: D-08 requires the fields to exist and at-least-one-required, but CONTEXT.md's "Claude's Discretion" section does not mention contact format validation at all.
    - What's unclear: Whether `email` should be validated as RFC-5322-ish (e.g., simple `@` + domain check) or accepted as free text; whether `telefone` needs a Brazilian phone number pattern; whether `instagram` should be normalized (strip a leading `@` or require one).
    - Recommendation: Light-touch validation only (length caps + trim, as shown in Code Examples) — these are contact-request fields for a human operator to read and reach out manually, not fields feeding an automated notification system, so strict format enforcement adds friction without adding safety. If the operator later reports garbage data, format validation can be tightened in a follow-up.
+   - RESOLVED: Plan 16-02 (Task 2) implements light-touch contact validation only — trim + per-field length caps (<=150 chars) on instagram/telefone/email, no RFC/phone/normalization format enforcement.
 
 ## Environment Availability
 
