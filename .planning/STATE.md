@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Phases — HP Notebook Hosting
 status: planning
-last_updated: "2026-05-19T18:25:15.833Z"
+last_updated: "2026-07-21T15:13:51.197Z"
 last_activity: 2026-05-15
 progress:
-  total_phases: 16
-  completed_phases: 7
-  total_plans: 28
-  completed_plans: 26
-  percent: 44
+  total_phases: 5
+  completed_phases: 2
+  total_plans: 12
+  completed_plans: 9
+  percent: 75
 ---
 
 # State — SoundGrabber
@@ -72,6 +72,7 @@ Last activity: 2026-05-15
 
 ### Roadmap Evolution
 
+- Phase 16 added: Participar do Som da Semana — substitui a submissão por email por um formulário público in-app + persistência das submissões + seção de curadoria no admin (Yonkou) para listar, editar, promover a próximo Som da Semana e rejeitar/arquivar. Requisito crítico: impecável em funcionalidade e segurança (endpoint público de escrita = superfície de abuso; Security Gate à risca).
 - Phase 11 added: Som da Semana — painel lateral curado com lançamentos da cena underground, atualizado pelo operador via endpoint autenticado
 - Phase 10.1 inserted after Phase 10 (URGENT): OAuth2 + Railway Volume auth migration — elimina expiração de cookies e dependência do bgutil
 - Phase 12 hardware confirmed (2026-05-14): i5-3210M @ 2.50GHz (Ivy Bridge, 2c/4t), 4GB DDR3, 700GB HDD, Intel HD 4000; chipset Panther Point → iTCO_wdt disponível para watchdog; baseline Celery concurrency=1
@@ -128,7 +129,7 @@ Last activity: 2026-05-15
 3. Read este arquivo para contexto e riscos conhecidos
 4. Próximo comando: `/gsd-plan-phase 8`
 
-**Last session:** 2026-05-19T18:25:15.827Z
+**Last session:** 2026-07-21T15:13:51.179Z
 
 ---
 
