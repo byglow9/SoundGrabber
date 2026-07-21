@@ -388,6 +388,16 @@ Plans:
 
 **Mapped: 57/57 (19 v1 + 16 v1.1 + 10 v1.2 + 12 v1.3)**
 
+### Phase 16: Participar do Som da Semana - submissao in-app e curadoria no admin
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 15
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 16 to break down)
+
 ---
 
 *Roadmap created: 2026-04-29*
