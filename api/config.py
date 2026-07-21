@@ -31,6 +31,9 @@ class Settings:
     job_poll_rate_limit_per_minute: int = field(default_factory=lambda: _safe_int("JOB_POLL_RATE_LIMIT_PER_MINUTE", 60))
     # SEC-API-02: rate limit para download de WAV (GET /files/{id}) — 10/min por IP
     file_download_rate_limit_per_minute: int = field(default_factory=lambda: _safe_int("FILE_DOWNLOAD_RATE_LIMIT_PER_MINUTE", 10))
+    # POST /analyze rate limit — default 8/min por IP para acomodar lote de ate 5
+    # arquivos sequenciais no modo ANALISAR (ver STATE.md Key Decisions).
+    analyze_rate_limit_per_minute: int = field(default_factory=lambda: _safe_int("ANALYZE_RATE_LIMIT_PER_MINUTE", 8))
     # SEC-INFRA-01 (D-06): bypass para desenvolvimento local. Em producao no notebook,
     # DEV_MODE NAO eh definido, e a validacao de Redis auth eh obrigatoria no lifespan.
     # O default "false" (string) garante que esquecer de definir em producao = falha segura.

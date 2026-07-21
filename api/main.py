@@ -1121,7 +1121,7 @@ def submit_job(request: Request, request_body: JobRequest, response: Response) -
 
 
 @app.post("/analyze", status_code=202)
-@limiter.limit("3/minute")
+@limiter.limit(f"{settings.analyze_rate_limit_per_minute}/minute")
 def submit_analyze(
     request: Request,
     response: Response,

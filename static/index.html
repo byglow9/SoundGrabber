@@ -118,11 +118,11 @@
     <tr>
       <td id="dropzone-area" hidden>
         <div id="dropzone">
-          <div id="dropzone-label">Arraste o arquivo aqui<br>ou clique para selecionar</div>
-          <div id="dropzone-formats">WAV &middot; MP3 &middot; FLAC &middot; M4A</div>
+          <div id="dropzone-label">Arraste até 5 arquivos aqui<br>ou clique para selecionar</div>
+          <div id="dropzone-formats">WAV &middot; MP3 &middot; FLAC &middot; M4A &middot; máx. 5</div>
           <div id="selected-file"></div>
         </div>
-        <input type="file" id="file-input" accept=".wav,.mp3,.flac,.m4a" hidden>
+        <input type="file" id="file-input" accept=".wav,.mp3,.flac,.m4a" multiple hidden>
       </td>
     </tr>
 
@@ -175,6 +175,27 @@
       </td>
     </tr>
 
+    <!-- Batch results row (ANALISAR mode com 2+ arquivos) -->
+    <tr>
+      <td id="batch-area" hidden>
+        <div id="batch-note"></div>
+        <div id="batch-scroll">
+          <table id="batch-results" width="100%" cellpadding="0" cellspacing="0">
+            <thead>
+              <tr>
+                <th class="batch-col-file">Arquivo</th>
+                <th class="batch-col-bpm">BPM</th>
+                <th class="batch-col-key">Tom</th>
+                <th class="batch-col-cam">Camelot</th>
+                <th class="batch-col-status">Status</th>
+              </tr>
+            </thead>
+            <tbody id="batch-tbody"></tbody>
+          </table>
+        </div>
+      </td>
+    </tr>
+
     <!-- Error row (ERROR_RATE_LIMIT, ERROR_JOB, ERROR_TIMEOUT) -->
     <tr>
       <td id="error-area" hidden>
@@ -193,10 +214,11 @@
 
 <div id="updates-teaser-shell" hidden>
   <div id="updates-teaser">
-    <div id="updates-teaser-kicker">ATUALIZAÇÃO</div>
-    <div id="updates-teaser-title"></div>
-    <div id="updates-teaser-summary"></div>
-    <a id="updates-teaser-link" href="/atualizacoes">ver histórico</a>
+    <div id="updates-teaser-head">
+      <span id="updates-teaser-kicker">Últimas atualizações</span>
+    </div>
+    <div id="updates-teaser-list"></div>
+    <a id="updates-teaser-link" href="/atualizacoes" data-page="atualizacoes">ver histórico &#x2192;</a>
   </div>
 </div>
 
@@ -204,6 +226,12 @@
   <div id="page-content" hidden>
   <div id="page-scroll">
     <table id="page-table" width="700" align="center" cellpadding="0" cellspacing="0">
+      <tr id="section-atualizacoes" class="page-section">
+        <td class="about-section">
+          <h1>Atualizações</h1>
+          <div id="updates-inline"></div>
+        </td>
+      </tr>
       <tr id="section-projeto" class="page-section">
         <td class="about-section">
           <h1>O que é o SoundGrabber</h1>
@@ -282,7 +310,7 @@
   <div id="scroll-hint" hidden></div>
   </div>
 
-  <script src="/static/app.js?v=9"></script>
+  <script src="/static/app.js?v=13"></script>
   <script src="/static/nav.js"></script>
 <pre id="ascii-side">                                                                        ######mm
                                                                           ::MM++::

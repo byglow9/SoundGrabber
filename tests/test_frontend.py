@@ -329,13 +329,13 @@ def test_featured_sidebar_css_contract():
 # ---------------------------------------------------------------------------
 
 def test_updates_nav_and_teaser_present(api_client):
-    """Home publica linka /atualizacoes e tem teaser da ultima atualizacao."""
+    """Home publica linka /atualizacoes e tem teaser das ultimas atualizacoes."""
     response = api_client.get("/")
 
     assert response.status_code == 200
     assert 'href="/atualizacoes"' in response.text
     assert 'id="updates-teaser-shell"' in response.text
-    assert 'id="updates-teaser-title"' in response.text
+    assert 'id="updates-teaser-list"' in response.text
     assert "/yonkou/updates" not in response.text
 
 
@@ -356,6 +356,6 @@ def test_updates_static_js_contract():
     app_js = (PROJECT_ROOT / "static" / "app.js").read_text(encoding="utf-8")
 
     assert "fetch('/updates?limit=50')" in updates_js
-    assert "fetch('/updates?limit=1')" in app_js
+    assert "fetch('/updates?limit=3')" in app_js
     assert "textContent" in updates_js
     assert "innerHTML" not in updates_js

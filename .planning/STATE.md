@@ -67,6 +67,7 @@ Last activity: 2026-05-15
 | Phase 8: code fixes before Railway infra (v1.2) | All pipeline.py and nixpacks.toml changes are testable locally; no point deploying bgutil until the code that calls it is correct |
 | Phase 9: human checkpoint for bgutil deploy (v1.2) | Deploying a Railway service and setting env vars requires dashboard access — this is a deliberate manual step, not automatable by Claude |
 | No silent fallback when bgutil unavailable (v1.2) | Silent client switching hides configuration errors and makes failures non-deterministic; explicit failure is required by PIPE-06 |
+| POST /analyze rate limit elevado 3→8/min (configuravel) | Modo ANALISAR passou a aceitar lote de ate 5 arquivos analisados sequencialmente (um por vez) via fila no frontend; 8/min acomoda um lote completo com margem. Superficie de abuso permanece contida: upload capado em 50 MB/arquivo, temp 0600 + prefixo `sg_`, sweeper, e o proprio rate limit. Flexibilizacao de controle registrada conforme Security Gate. |
 
 ### Roadmap Evolution
 

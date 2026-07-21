@@ -574,23 +574,30 @@ def test_post_featured_rate_limit(api_client):
 # ---------------------------------------------------------------------------
 
 def test_analyze_rate_limit(api_client):
-    """POST /analyze limita 3 uploads por minuto por IP."""
+    """POST /analyze limita `analyze_rate_limit_per_minute` uploads por minuto por IP.
+
+    O limite passou a ser configuravel (default 8) para acomodar um lote de ate 5
+    arquivos sequenciais no modo ANALISAR — ver STATE.md Key Decisions.
+    """
     from unittest.mock import MagicMock
+    from api.main import settings
+
+    limit = settings.analyze_rate_limit_per_minute
     mock_result = MagicMock()
     mock_result.id = "fake-analyze-id"
     with patch("api.main.analyze_local_file") as mock_task:
         mock_task.delay.return_value = mock_result
-        for i in range(3):
+        for i in range(limit):
             r = api_client.post(
                 "/analyze",
                 files={"file": ("beat.wav", b"RIFF\x00\x00\x00\x00WAVEfmt ", "audio/wav")},
             )
-            assert r.status_code == 202, f"requisicao {i+1}/3 deveria ser 202, obtido {r.status_code}: {r.text}"
+            assert r.status_code == 202, f"requisicao {i+1}/{limit} deveria ser 202, obtido {r.status_code}: {r.text}"
         r = api_client.post(
             "/analyze",
             files={"file": ("beat.wav", b"RIFF\x00\x00\x00\x00WAVEfmt ", "audio/wav")},
         )
-        assert r.status_code == 429, f"4a requisicao deveria ser 429, obtido {r.status_code}: {r.text}"
+        assert r.status_code == 429, f"requisicao {limit + 1} deveria ser 429, obtido {r.status_code}: {r.text}"
 
 
 def test_analyze_invalid_extension(api_client):

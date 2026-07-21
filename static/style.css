@@ -280,13 +280,41 @@ td {
 
 #updates-teaser {
   background-color: #000000;
-  border: 1px solid #ff8800;
-  padding: 8px 10px;
-  max-height: 130px;
+  padding: 10px 10px 8px 10px;
+  max-height: 190px;
   overflow: hidden;
 }
 
-#updates-teaser-kicker,
+#updates-teaser-kicker {
+  display: inline-block;
+  background-color: #ff8800;
+  color: #000000;
+  font-family: 'Sligoil', 'Courier New', monospace;
+  font-size: 9px;
+  letter-spacing: 1px;
+  padding: 2px 6px;
+  text-transform: uppercase;
+}
+
+#updates-teaser-list {
+  margin-top: 8px;
+}
+
+.updates-teaser-item {
+  margin-bottom: 8px;
+}
+
+.updates-teaser-item:last-child {
+  margin-bottom: 0;
+}
+
+.updates-teaser-item-date {
+  font-family: 'Sligoil', 'Courier New', monospace;
+  font-size: 9px;
+  color: #804400;
+  text-transform: uppercase;
+}
+
 .system-update-meta {
   font-family: 'Courier New', monospace;
   font-size: 9px;
@@ -294,30 +322,33 @@ td {
   text-transform: uppercase;
 }
 
-#updates-teaser-title {
+.updates-teaser-item-title {
   font-family: 'Dela Gothic One', sans-serif;
-  font-size: 13px;
-  color: #ff8800;
-  margin-top: 4px;
-  line-height: 1.1;
-}
-
-#updates-teaser-summary {
-  font-family: 'Courier New', monospace;
   font-size: 11px;
   color: #ff8800;
-  line-height: 1.35;
-  margin-top: 4px;
-  max-height: 42px;
+  line-height: 1.15;
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.updates-teaser-item-summary {
+  font-family: 'Sligoil', 'Courier New', monospace;
+  font-size: 10px;
+  color: #ff8800;
+  line-height: 1.3;
+  margin-top: 3px;
+  max-height: 40px;
   overflow: hidden;
 }
 
 #updates-teaser-link,
 #updates-teaser-link:visited {
   display: inline-block;
-  margin-top: 4px;
+  margin-top: 6px;
   color: #ff8800;
-  font-family: 'Courier New', monospace;
+  font-family: 'Sligoil', 'Courier New', monospace;
   font-size: 11px;
   text-decoration: none;
 }
@@ -408,6 +439,80 @@ td {
 .label {
   font-size: 13px;
   color: #ff8800;
+}
+
+/* ============================================================
+   Batch results — análise de até 5 arquivos (modo ANALISAR)
+   ============================================================ */
+
+#batch-area {
+  border: none;
+  background-color: #000000;
+  padding: 8px;
+}
+
+#batch-note {
+  font-family: 'Sligoil', 'Courier New', monospace;
+  font-size: 11px;
+  color: #804400;
+  margin-bottom: 8px;
+  min-height: 0;
+}
+
+#batch-note:empty {
+  display: none;
+}
+
+#batch-scroll {
+  max-height: 260px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 136, 0, 0.38) transparent;
+}
+
+#batch-results {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: 'Sligoil', 'Courier New', monospace;
+}
+
+#batch-results th {
+  border: none;
+  border-bottom: 1px solid #ff8800;
+  padding: 6px 8px;
+  text-align: left;
+  font-size: 10px;
+  font-weight: normal;
+  color: #804400;
+  text-transform: uppercase;
+}
+
+#batch-results td {
+  border: none;
+  border-bottom: 1px solid #333333;
+  padding: 8px;
+  font-size: 12px;
+  color: #ff8800;
+  vertical-align: middle;
+}
+
+.batch-col-file,
+.batch-cell-file {
+  width: 40%;
+  max-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.batch-cell-status {
+  color: #804400;
+  text-transform: uppercase;
+  font-size: 10px;
+}
+
+.batch-row-error .batch-cell-status {
+  color: #ff3300;
 }
 
 /* ============================================================
@@ -1369,6 +1474,24 @@ body.yonkou-login-page {
   margin: 0 0 10px 0;
 }
 
+/* Meta (data / categoria) de cada atualização na seção in-page */
+#page-table td.about-section p.update-inline-meta {
+  color: #804400;
+  font-size: 10px;
+  text-transform: uppercase;
+  margin: 22px 0 0 0;
+}
+
+/* Título logo após a meta fica colado (a régua do h2 separa as notas) */
+#updates-inline p.update-inline-meta + h2 {
+  margin-top: 2px;
+}
+
+/* Primeira meta não precisa do respiro grande do topo */
+#updates-inline p.update-inline-meta:first-child {
+  margin-top: 6px;
+}
+
 #copy-template-btn {
   display: inline-block;
   margin: 0 8px 0 0;
@@ -1398,6 +1521,12 @@ body.updates-page {
 
 #updates-wrap {
   padding: 0;
+}
+
+#updates-shell,
+#updates-shell #top-nav,
+#updates-list {
+  border: none;
 }
 
 #updates-shell #top-nav {

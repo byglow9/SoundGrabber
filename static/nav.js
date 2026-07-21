@@ -1,10 +1,14 @@
 'use strict';
 
 document.addEventListener('DOMContentLoaded', function () {
-  var sobreSections      = ['section-projeto', 'section-aviso-legal', 'section-contato'];
-  var privSections       = ['section-privacidade'];
-  var participarSections = ['section-participar'];
-  var allSections        = sobreSections.concat(privSections).concat(participarSections);
+  var sobreSections        = ['section-projeto', 'section-aviso-legal', 'section-contato'];
+  var privSections         = ['section-privacidade'];
+  var participarSections   = ['section-participar'];
+  var atualizacoesSections = ['section-atualizacoes'];
+  var allSections          = sobreSections
+    .concat(privSections)
+    .concat(participarSections)
+    .concat(atualizacoesSections);
 
   var pageScroll = document.getElementById('page-scroll');
   var scrollHint = document.getElementById('scroll-hint');
@@ -26,9 +30,20 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   }
 
+  function syncTeaser(page) {
+    var teaser = document.getElementById('updates-teaser-shell');
+    if (!teaser) return;
+    var list = document.getElementById('updates-teaser-list');
+    var hasContent = !!(list && list.children.length > 0);
+    // Teaser só aparece na aba Início e apenas quando há notas carregadas.
+    teaser.hidden = page !== 'home' || !hasContent;
+  }
+
   function sgNav(page) {
     var wrapper     = document.getElementById('wrapper');
     var pageContent = document.getElementById('page-content');
+
+    syncTeaser(page);
 
     if (page === 'home') {
       wrapper.hidden     = false;
@@ -37,9 +52,15 @@ document.addEventListener('DOMContentLoaded', function () {
       document.body.style.overflow            = '';
     } else {
       wrapper.hidden     = true;
-      if (page === 'sobre')       setSections(sobreSections);
-      if (page === 'privacidade') setSections(privSections);
-      if (page === 'participar')  setSections(participarSections);
+      if (page === 'sobre')        setSections(sobreSections);
+      if (page === 'privacidade')  setSections(privSections);
+      if (page === 'participar')   setSections(participarSections);
+      if (page === 'atualizacoes') {
+        setSections(atualizacoesSections);
+        if (typeof window.sgLoadUpdatesSection === 'function') {
+          window.sgLoadUpdatesSection();
+        }
+      }
       pageContent.hidden = false;
       if (pageScroll) pageScroll.scrollTop = 0;
       document.documentElement.style.overflow = 'hidden';

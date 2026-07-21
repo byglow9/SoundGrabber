@@ -64,6 +64,15 @@
 - [ ] `submit_job` decorado com `@limiter.limit(f"{settings.rate_limit_per_minute}/minute")`
 - **Verificacao:** `pytest tests/test_api.py::test_rate_limit_returns_429 -x`
 
+### POST /analyze rate limit 8/min (configuravel)
+
+- [ ] `submit_analyze` decorado com `@limiter.limit(f"{settings.analyze_rate_limit_per_minute}/minute")`
+- [ ] `ANALYZE_RATE_LIMIT_PER_MINUTE` configuravel via env (default 8)
+- **Justificativa:** elevado de 3 para 8 para acomodar um lote de ate 5 arquivos sequenciais
+  no modo ANALISAR (upload continua capado em 50 MB/arquivo; temp 0600 + `sg_`; sweeper).
+  Decisao registrada em `STATE.md` (Key Decisions).
+- **Verificacao:** `pytest tests/test_security.py::test_analyze_rate_limit -x`
+
 ---
 
 ## 3. HTTP Hardening (controles ja implementados em api/main.py)

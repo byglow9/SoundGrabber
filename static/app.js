@@ -91,6 +91,155 @@ async function uploadFile(file) {
   }
 }
 
+// =============================================================================
+// Section 4b: Análise em lote (modo ANALISAR — até 5 arquivos, sequencial)
+// Fluxo promise-based dedicado; NÃO usa a state machine single-result nem os
+// timers globais, para não interferir no fluxo de download/arquivo único.
+// =============================================================================
+
+const SG_MAX_BATCH = 5;
+const SG_ALLOWED_EXT = ['wav', 'mp3', 'flac', 'm4a'];
+const SG_MAX_BYTES = 50 * 1024 * 1024;
+
+function sgSleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// Retorna mensagem de erro curta se inválido, ou null se ok.
+function sgValidateAudioFile(file) {
+  const ext = (file.name.split('.').pop() || '').toLowerCase();
+  if (!SG_ALLOWED_EXT.includes(ext)) return 'formato inválido';
+  if (file.size > SG_MAX_BYTES) return 'maior que 50 MB';
+  return null;
+}
+
+// Envia 1 arquivo e aguarda o resultado do job (polling dedicado).
+// onStatus(label) é chamado a cada etapa. Resolve { ok, data } ou { ok:false, message }.
+async function sgAnalyzeOne(file, onStatus) {
+  let response;
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+    response = await fetch('/analyze', { method: 'POST', body: formData });
+  } catch (err) {
+    return { ok: false, message: 'erro de conexão' };
+  }
+
+  if (response.status === 429) {
+    const retryAfter = parseInt(response.headers.get('retry-after') || '60', 10);
+    return { ok: false, message: `limite atingido — aguarde ${retryAfter}s` };
+  }
+  if (response.status === 413) return { ok: false, message: 'maior que 50 MB' };
+  if (response.status === 422) {
+    let msg = 'formato inválido';
+    try { const d = await response.json(); if (d.error) msg = d.error; } catch (e) { /* ignore */ }
+    return { ok: false, message: msg };
+  }
+  if (response.status !== 202) return { ok: false, message: 'falha no envio' };
+
+  let jid;
+  try { jid = (await response.json()).job_id; } catch (e) { /* ignore */ }
+  if (!jid) return { ok: false, message: 'falha no envio' };
+
+  const started = Date.now();
+  const TIMEOUT_MS = 180 * 1000;
+  while (Date.now() - started < TIMEOUT_MS) {
+    await sgSleep(2000);
+    let r;
+    try { r = await fetch(`/jobs/${jid}`); } catch (e) { return { ok: false, message: 'erro de conexão' }; }
+    if (!r.ok) return { ok: false, message: 'erro ao consultar status' };
+    let d;
+    try { d = await r.json(); } catch (e) { return { ok: false, message: 'resposta inválida' }; }
+    if (d.status === 'done') return { ok: true, data: d };
+    if (d.status === 'failed') {
+      return { ok: false, message: d.error_type === 'internal_error' ? 'erro interno' : 'falha na análise' };
+    }
+    if (onStatus) onStatus(stageLabel(d.status, d.stage));
+  }
+  return { ok: false, message: 'tempo esgotado' };
+}
+
+// Mostra a tabela de lote e esconde as outras áreas (fluxo próprio, fora da state machine).
+function sgShowBatch() {
+  $('form-area').hidden = true;
+  $('submit-btn').hidden = true;
+  $('progress-area').hidden = true;
+  $('result-card').hidden = true;
+  $('error-area').hidden = true;
+  $('validation-error').hidden = true;
+  $('batch-area').hidden = false;
+}
+
+function sgSetCell(row, cls, text) {
+  const cell = row.querySelector('.' + cls);
+  if (cell) cell.textContent = text;
+}
+
+// Cria uma linha da tabela de resultados. Retorna o <tr>.
+function sgAddBatchRow(name) {
+  const tr = document.createElement('tr');
+  ['file', 'bpm', 'key', 'cam', 'status'].forEach((k) => {
+    const td = document.createElement('td');
+    td.className = 'batch-cell-' + k;
+    tr.appendChild(td);
+  });
+  $('batch-tbody').appendChild(tr);
+  sgSetCell(tr, 'batch-cell-file', name);
+  sgSetCell(tr, 'batch-cell-bpm', '—');
+  sgSetCell(tr, 'batch-cell-key', '—');
+  sgSetCell(tr, 'batch-cell-cam', '—');
+  sgSetCell(tr, 'batch-cell-status', 'na fila');
+  return tr;
+}
+
+// Motor da fila: valida, monta a tabela e processa em série (1 arquivo por vez).
+async function analyzeQueue(fileList) {
+  const all = Array.from(fileList);
+  const files = all.slice(0, SG_MAX_BATCH);
+
+  // 1 arquivo → mantém o card detalhado atual (sem regressão de UX).
+  if (files.length === 1) {
+    uploadFile(files[0]);
+    return;
+  }
+
+  clearAllTimers();
+  $('batch-tbody').textContent = '';
+  $('batch-note').textContent = all.length > SG_MAX_BATCH
+    ? `Máximo de ${SG_MAX_BATCH} arquivos por vez — analisando os ${SG_MAX_BATCH} primeiros.`
+    : '';
+  sgShowBatch();
+
+  // Monta as linhas; inválidos já marcados com erro (não travam o lote).
+  const rows = files.map((file) => ({
+    file,
+    tr: sgAddBatchRow(file.name),
+    invalid: sgValidateAudioFile(file),
+  }));
+
+  // Processa em série.
+  for (const item of rows) {
+    if (item.invalid) {
+      item.tr.classList.add('batch-row-error');
+      sgSetCell(item.tr, 'batch-cell-status', item.invalid);
+      continue;
+    }
+    sgSetCell(item.tr, 'batch-cell-status', 'analisando...');
+    const res = await sgAnalyzeOne(item.file, (label) => {
+      sgSetCell(item.tr, 'batch-cell-status', label);
+    });
+    if (res.ok) {
+      sgSetCell(item.tr, 'batch-cell-bpm', res.data.bpm ?? '—');
+      sgSetCell(item.tr, 'batch-cell-key', res.data.key ?? '—');
+      sgSetCell(item.tr, 'batch-cell-cam', res.data.camelot ?? '—');
+      sgSetCell(item.tr, 'batch-cell-status', 'concluído');
+    } else {
+      item.tr.classList.add('batch-row-error');
+      sgSetCell(item.tr, 'batch-cell-status', res.message);
+    }
+  }
+}
+
 // clearAllTimers() — called at start of submitJob() to prevent ghost timers (Pitfall 4)
 function clearAllTimers() {
   stopPolling();
@@ -230,6 +379,7 @@ function showIdle() {
   $('dropzone-area').hidden = currentMode === 'baixar';
   $('progress-area').hidden = true;
   $('result-card').hidden = true;
+  $('batch-area').hidden = true;
   $('error-area').hidden = true;
   $('validation-error').hidden = true;
   $('dropzone').classList.remove('sg-dropzone--active');
@@ -685,20 +835,111 @@ async function loadFeatured() {
 
 function renderLatestUpdate(entries) {
   const shell = $('updates-teaser-shell');
-  if (!shell) return;
+  const list = $('updates-teaser-list');
+  if (!shell || !list) return;
   if (!Array.isArray(entries) || entries.length === 0) {
     shell.hidden = true;
     return;
   }
-  const latest = entries[0];
-  $('updates-teaser-title').textContent = latest.titulo || '';
-  $('updates-teaser-summary').textContent = latest.resumo || '';
-  shell.hidden = false;
+  // Mostra no máximo as 3 últimas atualizações (data + título).
+  // A primeira (mais recente) exibe também o resumo.
+  list.textContent = '';
+  entries.slice(0, 3).forEach((entry, index) => {
+    const item = document.createElement('div');
+    item.className = 'updates-teaser-item';
+
+    const date = document.createElement('div');
+    date.className = 'updates-teaser-item-date';
+    date.textContent = sgUpdateDate(entry.data_publicacao);
+    item.appendChild(date);
+
+    const title = document.createElement('div');
+    title.className = 'updates-teaser-item-title';
+    title.textContent = entry.titulo || '';
+    item.appendChild(title);
+
+    if (index === 0 && entry.resumo) {
+      const summary = document.createElement('div');
+      summary.className = 'updates-teaser-item-summary';
+      summary.textContent = entry.resumo;
+      item.appendChild(summary);
+    }
+
+    list.appendChild(item);
+  });
+  // Só exibe na aba Início — se um sub-painel (sobre/privacidade/participar)
+  // estiver aberto, mantém oculto mesmo que o fetch resolva depois da navegação.
+  const pageContent = $('page-content');
+  shell.hidden = !!(pageContent && !pageContent.hidden);
 }
+
+// Converte data ISO (YYYY-MM-DD) para DD/MM/YYYY; devolve string vazia se ausente.
+function sgUpdateDate(value) {
+  if (!value) return '';
+  const parts = String(value).split('-');
+  if (parts.length !== 3) return String(value);
+  return parts[2] + '/' + parts[1] + '/' + parts[0];
+}
+
+// Renderiza a lista de atualizações dentro da seção in-page (#updates-inline),
+// usando a mesma tipografia das outras abas (.about-section: h2 + p + ul).
+function renderUpdatesInto(container, entries) {
+  container.textContent = '';
+  if (!entries || entries.length === 0) {
+    const empty = document.createElement('p');
+    empty.textContent = 'Nenhuma atualização publicada ainda.';
+    container.appendChild(empty);
+    return;
+  }
+  entries.forEach((entry) => {
+    const meta = document.createElement('p');
+    meta.className = 'update-inline-meta';
+    meta.textContent = sgUpdateDate(entry.data_publicacao) + ' / ' + (entry.categoria || 'sistema');
+    container.appendChild(meta);
+
+    const title = document.createElement('h2');
+    title.textContent = entry.titulo || '';
+    container.appendChild(title);
+
+    if (entry.resumo) {
+      const summary = document.createElement('p');
+      summary.textContent = entry.resumo;
+      container.appendChild(summary);
+    }
+
+    const bullets = Array.isArray(entry.bullets) ? entry.bullets : [];
+    if (bullets.length > 0) {
+      const list = document.createElement('ul');
+      bullets.forEach((text) => {
+        const li = document.createElement('li');
+        li.textContent = text;
+        list.appendChild(li);
+      });
+      container.appendChild(list);
+    }
+  });
+}
+
+// Carrega as atualizações na seção in-page. Exposta globalmente para o nav.js.
+function sgLoadUpdatesSection() {
+  const container = $('updates-inline');
+  if (!container) return;
+  container.textContent = 'Carregando atualizações...';
+  fetch('/updates?limit=50').then((response) => {
+    if (response.status === 204) return [];
+    if (!response.ok) throw new Error('updates unavailable');
+    return response.json();
+  }).then((data) => {
+    renderUpdatesInto(container, Array.isArray(data) ? data : []);
+  }).catch(() => {
+    renderUpdatesInto(container, []);
+  });
+}
+window.sgLoadUpdatesSection = sgLoadUpdatesSection;
 
 async function loadLatestUpdate() {
   try {
-    const response = await fetch('/updates?limit=1');
+    const response = await fetch('/updates?limit=3');
     if (response.status === 204) {
       renderLatestUpdate([]);
       return;
@@ -777,14 +1018,14 @@ function init() {
   $('dropzone').addEventListener('drop', (e) => {
     e.preventDefault();
     $('dropzone').classList.remove('sg-dropzone--active');
-    const file = e.dataTransfer.files[0];
-    if (file) uploadFile(file);
+    const files = e.dataTransfer.files;
+    if (files && files.length) analyzeQueue(files);
   });
 
   // File input change
   $('file-input').addEventListener('change', () => {
-    const file = $('file-input').files[0];
-    if (file) uploadFile(file);
+    const files = $('file-input').files;
+    if (files && files.length) analyzeQueue(files);
     $('file-input').value = '';  // reset so same file can be re-selected
   });
 }
