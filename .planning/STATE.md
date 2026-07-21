@@ -68,6 +68,7 @@ Last activity: 2026-05-15
 | Phase 9: human checkpoint for bgutil deploy (v1.2) | Deploying a Railway service and setting env vars requires dashboard access — this is a deliberate manual step, not automatable by Claude |
 | No silent fallback when bgutil unavailable (v1.2) | Silent client switching hides configuration errors and makes failures non-deterministic; explicit failure is required by PIPE-06 |
 | POST /analyze rate limit elevado 3→8/min (configuravel) | Modo ANALISAR passou a aceitar lote de ate 5 arquivos analisados sequencialmente (um por vez) via fila no frontend; 8/min acomoda um lote completo com margem. Superficie de abuso permanece contida: upload capado em 50 MB/arquivo, temp 0600 + prefixo `sg_`, sweeper, e o proprio rate limit. Flexibilizacao de controle registrada conforme Security Gate. |
+| pip-audit no predeploy-check com --ignore-vuln para 4 CVEs do yt-dlp (PYSEC-2026-3430/3431/3433, GHSA-69qj-pvh9-c5wg) | yt-dlp 2026.3.17 acumula 7 achados corrigidos em 2026.6.9; o gate abortava todo deploy com set -e. Ignorar SO estes IDs conhecidos desbloqueia o deploy sem desligar o gate: qualquer vuln nova em qualquer dependencia (inclusive novo CVE do yt-dlp) continua bloqueando. Medida TEMPORARIA — o fix definitivo e atualizar o yt-dlp (bump de 2026.3.17→2026.6.9+), pendente de validacao no pipeline de download. Ao atualizar, remover os --ignore-vuln. Flexibilizacao registrada conforme Security Gate. |
 
 ### Roadmap Evolution
 

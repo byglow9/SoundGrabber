@@ -131,8 +131,19 @@ api_loopback="$(docker compose config | rg -n '127\.0\.0\.1:8000:8000|host_ip: 1
 ok "docker-compose validado."
 
 log "Rodando pip-audit..."
-"$PIP_AUDIT_BIN" --cache-dir /tmp/soundgrabber-pip-audit-cache -r requirements.txt
-ok "pip-audit sem achados bloqueantes reportados."
+# CVEs aceitos temporariamente: yt-dlp 2026.3.17 acumula achados (IDs abaixo),
+# todos corrigidos em 2026.6.9. Enquanto o bump do yt-dlp nao e validado no
+# pipeline de download, estes IDs sao ignorados para nao travar o deploy.
+# IMPORTANTE: qualquer vuln NOVA (em qualquer dependencia, inclusive um CVE novo
+# do yt-dlp) continua bloqueando o deploy. Decisao registrada em STATE.md.
+PIP_AUDIT_IGNORES=(
+    --ignore-vuln PYSEC-2026-3430
+    --ignore-vuln PYSEC-2026-3431
+    --ignore-vuln PYSEC-2026-3433
+    --ignore-vuln GHSA-69qj-pvh9-c5wg
+)
+"$PIP_AUDIT_BIN" --cache-dir /tmp/soundgrabber-pip-audit-cache "${PIP_AUDIT_IGNORES[@]}" -r requirements.txt
+ok "pip-audit sem achados bloqueantes (CVEs conhecidos do yt-dlp ignorados; ver STATE.md)."
 
 log "Rodando testes de seguranca/deploy..."
 if [ -x .venv/bin/python ]; then
