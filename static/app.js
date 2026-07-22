@@ -127,7 +127,7 @@ async function sgAnalyzeOne(file, onStatus) {
 
   if (response.status === 429) {
     const retryAfter = parseInt(response.headers.get('retry-after') || '60', 10);
-    return { ok: false, message: `limite atingido — aguarde ${retryAfter}s` };
+    return { ok: false, message: `limite atingido, aguarde ${retryAfter}s` };
   }
   if (response.status === 413) return { ok: false, message: 'maior que 50 MB' };
   if (response.status === 422) {
@@ -185,9 +185,9 @@ function sgAddBatchRow(name) {
   });
   $('batch-tbody').appendChild(tr);
   sgSetCell(tr, 'batch-cell-file', name);
-  sgSetCell(tr, 'batch-cell-bpm', '—');
-  sgSetCell(tr, 'batch-cell-key', '—');
-  sgSetCell(tr, 'batch-cell-cam', '—');
+  sgSetCell(tr, 'batch-cell-bpm', '-');
+  sgSetCell(tr, 'batch-cell-key', '-');
+  sgSetCell(tr, 'batch-cell-cam', '-');
   sgSetCell(tr, 'batch-cell-status', 'na fila');
   return tr;
 }
@@ -206,7 +206,7 @@ async function analyzeQueue(fileList) {
   clearAllTimers();
   $('batch-tbody').textContent = '';
   $('batch-note').textContent = all.length > SG_MAX_BATCH
-    ? `Máximo de ${SG_MAX_BATCH} arquivos por vez — analisando os ${SG_MAX_BATCH} primeiros.`
+    ? `Máximo de ${SG_MAX_BATCH} arquivos por vez, analisando os ${SG_MAX_BATCH} primeiros.`
     : '';
   sgShowBatch();
 
@@ -229,9 +229,9 @@ async function analyzeQueue(fileList) {
       sgSetCell(item.tr, 'batch-cell-status', label);
     });
     if (res.ok) {
-      sgSetCell(item.tr, 'batch-cell-bpm', res.data.bpm ?? '—');
-      sgSetCell(item.tr, 'batch-cell-key', res.data.key ?? '—');
-      sgSetCell(item.tr, 'batch-cell-cam', res.data.camelot ?? '—');
+      sgSetCell(item.tr, 'batch-cell-bpm', res.data.bpm ?? '-');
+      sgSetCell(item.tr, 'batch-cell-key', res.data.key ?? '-');
+      sgSetCell(item.tr, 'batch-cell-cam', res.data.camelot ?? '-');
       sgSetCell(item.tr, 'batch-cell-status', 'concluído');
     } else {
       item.tr.classList.add('batch-row-error');
