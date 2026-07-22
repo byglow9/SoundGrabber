@@ -1127,7 +1127,8 @@ body.yonkou-login-page {
 
 /* ── Form section ──────────────────────────────────────────────────── */
 
-#form-header-table {
+#form-header-table,
+#submissao-edit-header-table {
   margin-bottom: 14px;
 }
 
@@ -1217,13 +1218,15 @@ body.yonkou-login-page {
 }
 
 #yonkou-form-table,
-.participar-form-table {
+.participar-form-table,
+#submissao-edit-table {
   margin-top: 6px;
   border: none;
 }
 
 #yonkou-form-table td,
-.participar-form-table td {
+.participar-form-table td,
+#submissao-edit-table td {
   border: none;
   padding: 0 0 2px 0;
 }
@@ -1239,14 +1242,16 @@ body.yonkou-login-page {
 }
 
 #yonkou-links,
-#participar-links {
+#participar-links,
+#submissao-links {
   margin: 6px 0 0 0;
   padding: 8px 10px 4px 10px;
   border: 1px solid #ff8800;
 }
 
 #yonkou-links legend,
-#participar-links legend {
+#participar-links legend,
+#submissao-links legend {
   color: #ff8800;
   font-family: 'Sligoil', 'Courier New', monospace;
   font-size: 11px;
@@ -1254,7 +1259,8 @@ body.yonkou-login-page {
 }
 
 #yonkou-links-table,
-#participar-links-table {
+#participar-links-table,
+#submissao-links-table {
   border: none;
 }
 
@@ -1399,13 +1405,16 @@ body.yonkou-login-page {
     padding-top: 0 !important;
   }
 
-  #yonkou-form-table td {
+  #yonkou-form-table td,
+  #submissao-edit-table td {
     display: block;
     width: auto;
   }
 
   #yonkou-links-table tr,
-  #yonkou-links-table td {
+  #yonkou-links-table td,
+  #submissao-links-table tr,
+  #submissao-links-table td {
     display: block;
     width: auto;
   }
@@ -1699,15 +1708,49 @@ body.updates-page {
 
 
 #tab-som-panel,
-#tab-updates-panel {
+#tab-updates-panel,
+#tab-submissoes-panel {
   border: none;
   padding: 12px 0 0 0;
   min-height: 328px;
 }
 
 #tab-som-panel #dashboard-table,
-#tab-updates-panel #updates-dashboard-table {
+#tab-updates-panel #updates-dashboard-table,
+#tab-submissoes-panel #submissoes-dashboard-table {
   margin: 0;
+}
+
+#submissoes-list table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: 'Sligoil', 'Courier New', monospace;
+  font-size: 12px;
+}
+
+#submissoes-list th,
+#submissoes-list td {
+  border: 1px solid #3d2200;
+  padding: 6px 8px;
+  color: #ff8800;
+  text-align: left;
+  vertical-align: top;
+}
+
+#submissoes-list th {
+  color: #804400;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-size: 11px;
+  background-color: #1a0d00;
+}
+
+#submissoes-list td .yonkou-secondary,
+#submissoes-list td .yonkou-primary {
+  display: inline-block;
+  margin: 2px 4px 2px 0;
+  padding: 4px 8px;
+  font-size: 11px;
 }
 
 #page-index {

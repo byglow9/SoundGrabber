@@ -161,7 +161,7 @@
 - [x] **SUBMIT-06**: Admin promove submissão e deriva `featured:next` sem publicar (D-06/D-07)
 - [x] **SUBMIT-07**: Admin publica: `featured:next` → `featured:current`, `featured:current` antigo → `featured:history` (D-06)
 - [x] **SUBMIT-08**: Admin transiciona status de rejeição/arquivamento (D-05)
-- [ ] **SUBMIT-09**: Cap de retenção (~200) evicta apenas entradas terminais rejeitada/arquivada (D-02)
+- [x] **SUBMIT-09**: Cap de retenção (~200) evicta apenas entradas terminais rejeitada/arquivada (D-02)
 - [x] **SUBMIT-10**: `#section-participar` público substituído por formulário real em tabela Y2K que faz `POST /submissions`; fluxo de email/copiar-template removido (D-11)
 - [x] **SUBMIT-11**: Nota de consentimento de privacidade no formulário + Política de Privacidade atualizada em `index.html` `#section-privacidade` e `about.html` (D-09)
 
@@ -245,7 +245,7 @@
 | SUBMIT-06 | Phase 16 | Complete |
 | SUBMIT-07 | Phase 16 | Complete |
 | SUBMIT-08 | Phase 16 | Complete |
-| SUBMIT-09 | Phase 16 | Pending |
+| SUBMIT-09 | Phase 16 | Complete |
 | SUBMIT-10 | Phase 16 | Complete |
 | SUBMIT-11 | Phase 16 | Complete |
 | SEC-SUBMIT-01 | Phase 16 | Complete |
