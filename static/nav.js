@@ -95,11 +95,14 @@ document.addEventListener('DOMContentLoaded', function () {
     return el ? String(el.value || '').trim() : '';
   }
 
-  // ── Artistas (1-3, min 1) e Produtores (0-1) — mesmo padrao visual/JS do
-  // editor Yonkou (createArtistaRow/wireArtistasList em yonkou.js), com os
-  // caps de SubmissionRequest (api/main.py: artistas<=3, produtores<=1).
-  var ARTISTAS_MAX = 3;
-  var PRODUTORES_MAX = 1;
+  // ── Artistas (1-3, min 1) e Produtores (0-1, default 1) — mesmo padrao
+  // visual/JS do editor Yonkou (createArtistaRow/wireArtistasList em
+  // yonkou.js), com os caps de SubmissionRequest (api/main.py:
+  // artistas<=3, produtores<=1). PLURAL_OF existe porque "produtor" pluraliza
+  // de forma irregular (produtorES, nao produtorS) — usar um mapa evita
+  // reintroduzir esse bug de concatenacao em cada novo call site.
+  var PLURAL_OF = { artista: 'artistas', produtor: 'produtores' };
+  var MAX_OF = { artista: 3, produtor: 1 };
 
   function createParticiparPersonRow(kind, nome, url) {
     var row = document.createElement('div');
@@ -131,16 +134,15 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   function syncParticiparAddButton(kind) {
-    var list = document.getElementById('participar-' + kind + 's-list');
+    var list = document.getElementById('participar-' + PLURAL_OF[kind] + '-list');
     var addBtn = document.getElementById('participar-add-' + kind + '-btn');
     if (!list || !addBtn) return;
     var count = list.querySelectorAll('.' + kind + '-row').length;
-    var max = kind === 'artista' ? ARTISTAS_MAX : PRODUTORES_MAX;
-    addBtn.style.display = count >= max ? 'none' : '';
+    addBtn.style.display = count >= MAX_OF[kind] ? 'none' : '';
   }
 
   function initParticiparPersonList(kind, minRows) {
-    var list = document.getElementById('participar-' + kind + 's-list');
+    var list = document.getElementById('participar-' + PLURAL_OF[kind] + '-list');
     var addBtn = document.getElementById('participar-add-' + kind + '-btn');
     if (!list || !addBtn) return;
     list.innerHTML = '';
@@ -155,7 +157,7 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   function resetParticiparPersonList(kind, minRows) {
-    var list = document.getElementById('participar-' + kind + 's-list');
+    var list = document.getElementById('participar-' + PLURAL_OF[kind] + '-list');
     if (!list) return;
     list.innerHTML = '';
     for (var i = 0; i < minRows; i++) {
@@ -166,7 +168,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
   function participarPeopleFromList(kind) {
     var people = [];
-    document.querySelectorAll('#participar-' + kind + 's-list .' + kind + '-row').forEach(function (row) {
+    document.querySelectorAll('#participar-' + PLURAL_OF[kind] + '-list .' + kind + '-row').forEach(function (row) {
       var nomeInput = row.querySelector('.' + kind + '-nome');
       var urlInput = row.querySelector('.' + kind + '-url');
       if (!nomeInput) return;
@@ -178,7 +180,7 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   initParticiparPersonList('artista', 1);
-  initParticiparPersonList('produtor', 0);
+  initParticiparPersonList('produtor', 1);
 
   // ── Links adicionais: select de plataforma conhecida + campo customizado
   // para "Outros" — mesmo padrao de featured-link-label-N em yonkou.js.
@@ -269,7 +271,7 @@ document.addEventListener('DOMContentLoaded', function () {
           setParticiparStatus('Recebemos sua indicação! A curadoria vai avaliar em breve.', false);
           participarForm.reset();
           resetParticiparPersonList('artista', 1);
-          resetParticiparPersonList('produtor', 0);
+          resetParticiparPersonList('produtor', 1);
           resetParticiparLinkSelects();
           return null;
         }
