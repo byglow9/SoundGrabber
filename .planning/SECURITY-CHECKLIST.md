@@ -242,17 +242,66 @@
 
 ---
 
-## 8. Threats NAO mitigados nesta fase (deferidos)
+## 8. Submissoes publicas e curadoria (Phase 16)
+
+### SEC-SUBMIT-01 — POST /submissions rate limit apertado (3/hora)
+
+- [ ] `api/main.py::submit_submission` existe em `@app.post("/submissions", status_code=202)`
+- [ ] Rota decorada com `@limiter.limit(f"{settings.submission_rate_limit_per_hour}/hour")`
+- [ ] `SUBMISSION_RATE_LIMIT_PER_HOUR` configuravel via env (default 3)
+- **Verificacao:** `pytest tests/test_security.py::test_submission_rate_limit -x`
+- **Threat:** Denial of Service / Repudiation — endpoint publico de escrita sem conta e superficie de spam
+
+### SEC-SUBMIT-02 — Honeypot silencioso (campo `website`)
+
+- [ ] `SubmissionRequest.website` (decoy) preenchido retorna o MESMO 202 generico de uma submissao legitima
+- [ ] Nada e persistido quando o honeypot esta preenchido; nenhum log distinguivel de "spam" (Anti-Pattern)
+- **Verificacao:** `pytest tests/test_security.py::test_submission_honeypot_silently_dropped -x`
+- **Threat:** Elevation of Privilege — revelar a deteccao ao bot permitiria adaptar o ataque
+
+### SEC-SUBMIT-03 — Mutacoes admin exigem CSRF; leituras exigem apenas sessao
+
+- [ ] `GET /yonkou/submissions` usa `dependencies=[Depends(_admin_required_dependency)]` (leitura, sem CSRF)
+- [ ] `PATCH /yonkou/submissions/{id}`, `POST /yonkou/submissions/{id}/reject` e `/archive` usam `dependencies=[Depends(_admin_csrf_dependency)]`
+- **Verificacao:** `pytest tests/test_security.py::test_get_submissions_requires_admin tests/test_security.py::test_patch_submission_requires_csrf tests/test_security.py::test_reject_and_archive_submission -x`
+- **Nota:** `promote`/`publish-next` (Plan 16-04) cobertos por `test_submission_admin_mutations_require_csrf`, ainda RED nesta fase
+- **Threat:** Spoofing / Tampering — sessao roubada/CSRF poderia forjar edicao ou transicao de status
+
+### SEC-SUBMIT-04 — Body size 4KB cobre o payload de cardinalidade maxima
+
+- [ ] Nenhuma excecao de path adicionada em `_limit_body_size` para `/submissions` ou `/yonkou/submissions/{id}`
+- [ ] Caps do Plan 16-02 mantem o payload publico maximo em 3726 bytes e o payload admin de edicao em 3711 bytes — ambos abaixo de `_MAX_BODY_BYTES=4096`
+- **Verificacao:** `pytest tests/test_security.py::test_submission_body_size_enforced -x`
+- **Threat:** Denial of Service — corpo oversized nao deve chegar ao parsing Pydantic (413 antes de 500)
+
+### SEC-SUBMIT-05 — Resposta publica nunca ecoa dados de contato
+
+- [ ] `POST /submissions` retorna um dict fixo (`{"status": "recebido"}`), sem instagram/telefone/email/contato
+- [ ] Nao existe endpoint publico de leitura de submissoes (somente `/yonkou/submissions`, autenticado)
+- **Verificacao:** `pytest tests/test_security.py::test_submission_response_excludes_contact -x`
+- **Threat:** Information Disclosure — dado pessoal de contato (D-08) nunca deve vazar na resposta publica
+
+### SEC-SUBMIT-06 — IDOR defense em `{submission_id}`
+
+- [ ] `PATCH /yonkou/submissions/{id}`, `POST .../reject` e `POST .../archive` validam `submission_id` contra `JOB_ID_PATTERN` ANTES de qualquer lookup no Redis
+- [ ] Id desconhecido (mas com formato valido) retorna 404
+- **Verificacao:** `grep -n "JOB_ID_PATTERN.match(submission_id)" api/main.py` (3 ocorrencias esperadas)
+- **Threat:** Tampering / Information Disclosure — id malformado nao deve alcancar `_get_submission`/`_update_submission`
+
+---
+
+## 9. Threats NAO mitigados nesta fase (deferidos)
 
 Estes itens estao escopados para v1.2 ou versoes futuras:
 
 - **CSP sem `'unsafe-inline'`** — requer remover inline styles do HTML Y2K (v1.2)
 - **Private /tmp directory por job** — `/tmp/sg_{id}/` com `os.mkdir(mode=0o700)` (v2)
 - **Job cancellation endpoint** — DELETE /jobs/{id} com auth (v2)
+- **`/yonkou/submissions/{id}/promote` e `/yonkou/releases/publish-next`** — Plan 16-04 (proxima wave desta fase)
 
 ---
 
-## 9. Verificacao end-to-end (rodar antes de cada deploy)
+## 10. Verificacao end-to-end (rodar antes de cada deploy)
 
 Bloco de comandos shell para validar a checklist completa antes de deploy. Cada bloco em fence bash.
 
@@ -294,7 +343,7 @@ done
 
 ---
 
-## 10. Historico de mudancas
+## 11. Historico de mudancas
 
 | Data | Phase | Controles adicionados |
 |------|-------|----------------------|
@@ -302,3 +351,4 @@ done
 | Phase 6 | Application Security | WAV chmod 0o600, start.sh chmod 750, rate limit GET /jobs e /files, /health endpoint, pip-audit policy, este checklist |
 | Phase 7 | Infrastructure Security | Redis auth enforcement (DEV_MODE bypass), HSTS via FastAPI middleware, Railway PaaS deploy (railway.toml), HTTPS automatico Railway |
 | Phase 11 | Som da Semana | `/featured` e `/yonkou` rate-limited, `ADMIN_PASSWORD`, cookie assinado HttpOnly SameSite, validacao Pydantic D-03, Redis `featured:current` com JSON fallback, renderizacao `textContent` e `noopener` |
+| Phase 16 (16-03) | Submissoes publicas + curadoria | `POST /submissions` rate-limited 3/hora + honeypot silencioso + resposta sem contato; `GET /yonkou/submissions` (auth-only); `PATCH .../{id}`, `POST .../{id}/reject`, `POST .../{id}/archive` (CSRF); IDOR defense via `JOB_ID_PATTERN` antes do lookup |
