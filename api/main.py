@@ -411,6 +411,73 @@ class SubmissionRequest(BaseModel):
         return value
 
 
+class SubmissionEditRequest(BaseModel):
+    """Payload admin de edicao in-place de uma submissao (SUBMIT-05/D-07).
+
+    Mesmos campos e caps apertados de SubmissionRequest (Plan 16-02), MENOS o
+    honeypot 'website' (decoy publico, sem sentido no fluxo admin). Sem o
+    'website', o corpo de cardinalidade MAXIMA fica em 3711 bytes (medido),
+    ainda abaixo de _MAX_BODY_BYTES=4096 — nenhuma excecao de path necessaria.
+    """
+
+    artistas: list[SubmissionArtist]
+    produtores: list[SubmissionArtist] = []
+    titulo: str
+    genero: str
+    descricao: str
+    youtube_url: str
+    links: list[SubmissionLink] = []
+    contato: SubmissionContact
+
+    @field_validator("titulo", "genero")
+    @classmethod
+    def short_text_required(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("Field cannot be empty")
+        if len(value) > 150:
+            raise ValueError("Field must be 150 characters or less")
+        return value
+
+    @field_validator("descricao")
+    @classmethod
+    def descricao_required(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("Description cannot be empty")
+        if len(value) > 350:
+            raise ValueError("Description must be 350 characters or less")
+        return value
+
+    @field_validator("youtube_url")
+    @classmethod
+    def youtube_url_required(cls, value: str) -> str:
+        return _normalize_youtube_url(value)
+
+    @field_validator("artistas")
+    @classmethod
+    def artistas_required(cls, value: list) -> list:
+        if not value:
+            raise ValueError("At least one artist is required")
+        if len(value) > 3:
+            raise ValueError("Submission supports at most 3 artists")
+        return value
+
+    @field_validator("produtores")
+    @classmethod
+    def max_one_produtor(cls, value: list) -> list:
+        if len(value) > 1:
+            raise ValueError("Submission supports at most 1 producer")
+        return value
+
+    @field_validator("links")
+    @classmethod
+    def max_four_links(cls, value: list[SubmissionLink]) -> list[SubmissionLink]:
+        if len(value) > 4:
+            raise ValueError("Submission supports at most four links")
+        return value
+
+
 class SystemUpdateRequest(BaseModel):
     titulo: str
     resumo: str
@@ -1667,6 +1734,29 @@ def get_updates(
     return entries
 
 
+@app.post("/submissions", status_code=202)
+@limiter.limit(f"{settings.submission_rate_limit_per_hour}/hour")
+def submit_submission(
+    request: Request,
+    request_body: SubmissionRequest,
+    response: Response,
+) -> dict:
+    """SUBMIT-01/D-03: intake publico de 'Participar do Som da Semana'.
+
+    Honeypot (SEC-SUBMIT-02): campo 'website' preenchido retorna o MESMO 202
+    generico, sem persistir nada e sem logar uma mensagem distinguivel de spam
+    (Anti-Pattern) — o bot nunca aprende que foi detectado.
+
+    Resposta (SEC-SUBMIT-05): corpo fixo, generico, NUNCA inclui instagram/
+    telefone/email/contato — nao ha leitura publica desta submissao depois.
+    """
+    if request_body.website.strip():
+        return {"status": "recebido"}
+    doc = _submission_document(request_body)
+    _save_submission(doc)
+    return {"status": "recebido"}
+
+
 @app.get("/yonkou")
 @limiter.limit("60/minute")
 def yonkou_panel(request: Request, response: Response) -> HTMLResponse:
@@ -1767,6 +1857,81 @@ def get_releases(request: Request, response: Response):
     if not entries:
         return Response(status_code=204)
     return entries
+
+
+@app.get("/yonkou/submissions", dependencies=[Depends(_admin_required_dependency)])
+@limiter.limit("30/minute")
+def get_submissions(request: Request, response: Response):
+    """SUBMIT-04: lista TODAS as submissoes (qualquer status), auth-only (sem CSRF — leitura)."""
+    entries = _load_submissions()
+    if not entries:
+        return Response(status_code=204)
+    return entries
+
+
+@app.patch("/yonkou/submissions/{submission_id}", dependencies=[Depends(_admin_csrf_dependency)])
+@limiter.limit("20/minute")
+def patch_submission(
+    submission_id: str,
+    request: Request,
+    request_body: SubmissionEditRequest,
+    response: Response,
+) -> dict:
+    """SUBMIT-05/D-07: edicao in-place. IDOR defense (T-16-06): submission_id
+    e validado contra JOB_ID_PATTERN ANTES de qualquer lookup no Redis."""
+    if not JOB_ID_PATTERN.match(submission_id):
+        raise HTTPException(status_code=404, detail="Submission not found")
+    existing = _get_submission(submission_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="Submission not found")
+
+    updated = {
+        **existing,
+        "artistas": [a.model_dump() for a in request_body.artistas],
+        "produtores": [p.model_dump() for p in request_body.produtores],
+        "titulo": request_body.titulo,
+        "genero": request_body.genero,
+        "descricao": request_body.descricao,
+        "youtube_url": request_body.youtube_url,
+        "links": [link.model_dump() for link in request_body.links],
+        "contato": request_body.contato.model_dump(),
+        "id": existing["id"],
+        "created_at_epoch": existing["created_at_epoch"],
+        "status": existing["status"],
+    }
+    _update_submission(updated)
+    return updated
+
+
+def _transition_submission_status(submission_id: str, new_status: str) -> dict:
+    """SUBMIT-08/D-05: transicao de status (rejeitada/arquivada). IDOR defense
+    (T-16-06): submission_id validado ANTES de qualquer lookup no Redis."""
+    if not JOB_ID_PATTERN.match(submission_id):
+        raise HTTPException(status_code=404, detail="Submission not found")
+    existing = _get_submission(submission_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="Submission not found")
+    updated = {**existing, "status": new_status}
+    _update_submission(updated)
+    return updated
+
+
+@app.post(
+    "/yonkou/submissions/{submission_id}/reject",
+    dependencies=[Depends(_admin_csrf_dependency)],
+)
+@limiter.limit("20/minute")
+def reject_submission(submission_id: str, request: Request, response: Response) -> dict:
+    return _transition_submission_status(submission_id, "rejeitada")
+
+
+@app.post(
+    "/yonkou/submissions/{submission_id}/archive",
+    dependencies=[Depends(_admin_csrf_dependency)],
+)
+@limiter.limit("20/minute")
+def archive_submission(submission_id: str, request: Request, response: Response) -> dict:
+    return _transition_submission_status(submission_id, "arquivada")
 
 
 @app.post("/yonkou/updates", dependencies=[Depends(_admin_csrf_dependency)])

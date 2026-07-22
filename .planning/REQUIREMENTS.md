@@ -153,25 +153,25 @@
 
 ### SUBMIT — Submissão in-app e curadoria
 
-- [ ] **SUBMIT-01**: `POST /submissions` aceita uma submissão válida e retorna sucesso genérico na tela (D-10)
-- [ ] **SUBMIT-02**: Pydantic valida campos obrigatórios: artista, titulo, genero, youtube_url obrigatório, descricao (D-11)
-- [ ] **SUBMIT-03**: Regra de contato-pelo-menos-um via `model_validator` (D-08)
-- [ ] **SUBMIT-04**: Admin `GET /yonkou/submissions` lista todas as submissões com status (D-03/D-05)
-- [ ] **SUBMIT-05**: Admin edita uma submissão in-place via `PATCH` (D-07)
+- [x] **SUBMIT-01**: `POST /submissions` aceita uma submissão válida e retorna sucesso genérico na tela (D-10)
+- [x] **SUBMIT-02**: Pydantic valida campos obrigatórios: artista, titulo, genero, youtube_url obrigatório, descricao (D-11)
+- [x] **SUBMIT-03**: Regra de contato-pelo-menos-um via `model_validator` (D-08)
+- [x] **SUBMIT-04**: Admin `GET /yonkou/submissions` lista todas as submissões com status (D-03/D-05)
+- [x] **SUBMIT-05**: Admin edita uma submissão in-place via `PATCH` (D-07)
 - [ ] **SUBMIT-06**: Admin promove submissão e deriva `featured:next` sem publicar (D-06/D-07)
 - [ ] **SUBMIT-07**: Admin publica: `featured:next` → `featured:current`, `featured:current` antigo → `featured:history` (D-06)
-- [ ] **SUBMIT-08**: Admin transiciona status de rejeição/arquivamento (D-05)
+- [x] **SUBMIT-08**: Admin transiciona status de rejeição/arquivamento (D-05)
 - [ ] **SUBMIT-09**: Cap de retenção (~200) evicta apenas entradas terminais rejeitada/arquivada (D-02)
 - [ ] **SUBMIT-10**: `#section-participar` público substituído por formulário real em tabela Y2K que faz `POST /submissions`; fluxo de email/copiar-template removido (D-11)
 - [ ] **SUBMIT-11**: Nota de consentimento de privacidade no formulário + Política de Privacidade atualizada em `index.html` `#section-privacidade` e `about.html` (D-09)
 
 ### SEC-SUBMIT — Segurança da submissão e curadoria
 
-- [ ] **SEC-SUBMIT-01**: `POST /submissions` com rate limit ~3/hora por IP, configurável via env (D-04)
-- [ ] **SEC-SUBMIT-02**: Honeypot preenchido → sucesso falso silencioso, sem persistência (D-03)
-- [ ] **SEC-SUBMIT-03**: Todas as mutações admin de submissão protegidas por `_admin_csrf_dependency` (D-12)
-- [ ] **SEC-SUBMIT-04**: Tamanho do body de `POST /submissions` reforçado via caps Pydantic mais rígidos ou exceção dedicada (D-12)
-- [ ] **SEC-SUBMIT-05**: Campos de contato nunca aparecem em resposta pública/não-autenticada (D-08)
+- [x] **SEC-SUBMIT-01**: `POST /submissions` com rate limit ~3/hora por IP, configurável via env (D-04)
+- [x] **SEC-SUBMIT-02**: Honeypot preenchido → sucesso falso silencioso, sem persistência (D-03)
+- [x] **SEC-SUBMIT-03**: Todas as mutações admin de submissão protegidas por `_admin_csrf_dependency` (D-12)
+- [x] **SEC-SUBMIT-04**: Tamanho do body de `POST /submissions` reforçado via caps Pydantic mais rígidos ou exceção dedicada (D-12)
+- [x] **SEC-SUBMIT-05**: Campos de contato nunca aparecem em resposta pública/não-autenticada (D-08)
 
 ---
 
@@ -237,22 +237,22 @@
 | PIPE-08 | Phase 14 | Complete |
 | TUNNEL-01 | Phase 15 | Pending |
 | TUNNEL-02 | Phase 15 | Pending |
-| SUBMIT-01 | Phase 16 | Pending |
-| SUBMIT-02 | Phase 16 | Pending |
-| SUBMIT-03 | Phase 16 | Pending |
-| SUBMIT-04 | Phase 16 | Pending |
-| SUBMIT-05 | Phase 16 | Pending |
+| SUBMIT-01 | Phase 16 | Complete |
+| SUBMIT-02 | Phase 16 | Complete |
+| SUBMIT-03 | Phase 16 | Complete |
+| SUBMIT-04 | Phase 16 | Complete |
+| SUBMIT-05 | Phase 16 | Complete |
 | SUBMIT-06 | Phase 16 | Pending |
 | SUBMIT-07 | Phase 16 | Pending |
-| SUBMIT-08 | Phase 16 | Pending |
+| SUBMIT-08 | Phase 16 | Complete |
 | SUBMIT-09 | Phase 16 | Pending |
 | SUBMIT-10 | Phase 16 | Pending |
 | SUBMIT-11 | Phase 16 | Pending |
-| SEC-SUBMIT-01 | Phase 16 | Pending |
-| SEC-SUBMIT-02 | Phase 16 | Pending |
-| SEC-SUBMIT-03 | Phase 16 | Pending |
-| SEC-SUBMIT-04 | Phase 16 | Pending |
-| SEC-SUBMIT-05 | Phase 16 | Pending |
+| SEC-SUBMIT-01 | Phase 16 | Complete |
+| SEC-SUBMIT-02 | Phase 16 | Complete |
+| SEC-SUBMIT-03 | Phase 16 | Complete |
+| SEC-SUBMIT-04 | Phase 16 | Complete |
+| SEC-SUBMIT-05 | Phase 16 | Complete |
 
 ---
 
