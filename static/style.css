@@ -1145,7 +1145,8 @@ body.yonkou-login-page {
   margin-bottom: 0;
 }
 
-.yonkou-form {
+.yonkou-form,
+.participar-form {
   margin: 0;
 }
 
@@ -1156,7 +1157,8 @@ body.yonkou-login-page {
   font-size: 12px;
 }
 
-.yonkou-input {
+.yonkou-input,
+.participar-input {
   display: block;
   width: 100%;
   margin-top: 4px;
@@ -1171,16 +1173,19 @@ body.yonkou-login-page {
   outline: none;
 }
 
-.yonkou-input:focus {
+.yonkou-input:focus,
+.participar-input:focus {
   border-color: #ff6600;
 }
 
-.yonkou-textarea {
+.yonkou-textarea,
+.participar-textarea {
   height: 70px;
   resize: vertical;
 }
 
-.yonkou-primary {
+.yonkou-primary,
+.participar-primary {
   display: inline-block;
   margin-top: 6px;
   background-color: #ff8800;
@@ -1193,22 +1198,26 @@ body.yonkou-login-page {
   cursor: pointer;
 }
 
-.yonkou-primary:hover {
+.yonkou-primary:hover,
+.participar-primary:hover {
   background-color: #ff6600;
   border-color: #ff6600;
 }
 
-#yonkou-form-table {
+#yonkou-form-table,
+.participar-form-table {
   margin-top: 6px;
   border: none;
 }
 
-#yonkou-form-table td {
+#yonkou-form-table td,
+.participar-form-table td {
   border: none;
   padding: 0 0 2px 0;
 }
 
-.yonkou-label-cell {
+.yonkou-label-cell,
+.participar-label-cell {
   width: 88px;
   color: #804400;
   font-family: 'Sligoil', 'Courier New', monospace;
@@ -1217,34 +1226,40 @@ body.yonkou-login-page {
   padding-top: 10px !important;
 }
 
-#yonkou-links {
+#yonkou-links,
+#participar-links {
   margin: 6px 0 0 0;
   padding: 8px 10px 4px 10px;
   border: 1px solid #ff8800;
 }
 
-#yonkou-links legend {
+#yonkou-links legend,
+#participar-links legend {
   color: #ff8800;
   font-family: 'Sligoil', 'Courier New', monospace;
   font-size: 11px;
   padding: 0 6px;
 }
 
-#yonkou-links-table {
+#yonkou-links-table,
+#participar-links-table {
   border: none;
 }
 
-.yonkou-links-cell {
+.yonkou-links-cell,
+.participar-links-cell {
   border: none;
   padding: 0 8px 0 0;
   vertical-align: top;
 }
 
-.yonkou-links-label {
+.yonkou-links-label,
+.participar-links-label {
   width: 24%;
 }
 
-.yonkou-links-url {
+.yonkou-links-url,
+.participar-links-url {
   width: 76%;
 }
 
@@ -1330,7 +1345,8 @@ body.yonkou-login-page {
   color: #ff6600;
 }
 
-#yonkou-links label {
+#yonkou-links label,
+#participar-links label {
   display: block;
   color: #804400;
   font-family: 'Sligoil', 'Courier New', monospace;

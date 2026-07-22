@@ -294,60 +294,66 @@
           <h1>Participe do Som da Semana</h1>
           <p>Toda semana o SoundGrabber destaca uma faixa de um artista underground brasileiro. Preencha o formulário abaixo para enviar sua indicação — sem email, sem template pra copiar.</p>
 
-          <form id="participar-form">
-          <table width="100%" cellpadding="4" cellspacing="0" border="0">
+          <form id="participar-form" class="participar-form">
+          <table class="participar-form-table" width="100%" cellpadding="0" cellspacing="0">
             <tr><td colspan="2"><h2>Sobre a faixa</h2></td></tr>
             <tr>
-              <td width="38%">Nome do artista/grupo *</td>
-              <td><input type="text" name="artista_nome" maxlength="100" required autocomplete="off"></td>
+              <td class="participar-label-cell">Nome do artista/grupo *</td>
+              <td><input type="text" name="artista_nome" maxlength="100" required autocomplete="off" class="participar-input"></td>
             </tr>
             <tr>
-              <td>Link do artista/grupo</td>
-              <td><input type="url" name="artista_url" maxlength="200" placeholder="https://..." autocomplete="off"></td>
+              <td class="participar-label-cell">Link do artista/grupo</td>
+              <td><input type="url" name="artista_url" maxlength="200" placeholder="https://..." autocomplete="off" class="participar-input"></td>
             </tr>
             <tr>
-              <td>Nome do produtor/beatmaker</td>
-              <td><input type="text" name="produtor_nome" maxlength="100" autocomplete="off"></td>
+              <td class="participar-label-cell">Nome do produtor/beatmaker</td>
+              <td><input type="text" name="produtor_nome" maxlength="100" autocomplete="off" class="participar-input"></td>
             </tr>
             <tr>
-              <td>Link do produtor/beatmaker</td>
-              <td><input type="url" name="produtor_url" maxlength="200" placeholder="https://..." autocomplete="off"></td>
+              <td class="participar-label-cell">Link do produtor/beatmaker</td>
+              <td><input type="url" name="produtor_url" maxlength="200" placeholder="https://..." autocomplete="off" class="participar-input"></td>
             </tr>
             <tr>
-              <td>Título da faixa *</td>
-              <td><input type="text" name="titulo" maxlength="150" required autocomplete="off"></td>
+              <td class="participar-label-cell">Título da faixa *</td>
+              <td><input type="text" name="titulo" maxlength="150" required autocomplete="off" class="participar-input"></td>
             </tr>
             <tr>
-              <td>Gênero musical *</td>
-              <td><input type="text" name="genero" maxlength="150" required autocomplete="off"></td>
+              <td class="participar-label-cell">Gênero musical *</td>
+              <td><input type="text" name="genero" maxlength="150" required autocomplete="off" class="participar-input"></td>
             </tr>
             <tr>
-              <td>Link do YouTube *</td>
-              <td><input type="url" name="youtube_url" maxlength="500" required placeholder="https://www.youtube.com/watch?v=..." autocomplete="off"></td>
+              <td class="participar-label-cell">Link do YouTube *</td>
+              <td><input type="url" name="youtube_url" maxlength="500" required placeholder="https://www.youtube.com/watch?v=..." autocomplete="off" class="participar-input"></td>
             </tr>
             <tr>
-              <td valign="top">Descrição (2-3 frases) *</td>
-              <td><textarea name="descricao" maxlength="350" rows="3" required></textarea></td>
+              <td class="participar-label-cell">Descrição (2-3 frases) *</td>
+              <td><textarea name="descricao" maxlength="350" rows="3" required class="participar-input participar-textarea"></textarea></td>
             </tr>
+          </table>
 
-            <tr><td colspan="2"><h2>Links adicionais (opcional, até 4)</h2></td></tr>
+          <fieldset id="participar-links" style="margin-top:14px">
+          <legend>Links adicionais (opcional, até 4)</legend>
+          <table id="participar-links-table" width="100%" cellpadding="0" cellspacing="0">
             <tr>
-              <td>Link 1 — rótulo / URL</td>
-              <td><input type="text" name="link_label_1" maxlength="30" placeholder="rótulo" autocomplete="off"> <input type="url" name="link_url_1" maxlength="220" placeholder="https://..." autocomplete="off"></td>
+              <td class="participar-links-cell participar-links-label"><label>Rótulo 1<input type="text" name="link_label_1" maxlength="30" placeholder="rótulo" autocomplete="off" class="participar-input"></label></td>
+              <td class="participar-links-cell participar-links-url"><label>URL 1<input type="url" name="link_url_1" maxlength="220" placeholder="https://..." autocomplete="off" class="participar-input"></label></td>
             </tr>
             <tr>
-              <td>Link 2 — rótulo / URL</td>
-              <td><input type="text" name="link_label_2" maxlength="30" placeholder="rótulo" autocomplete="off"> <input type="url" name="link_url_2" maxlength="220" placeholder="https://..." autocomplete="off"></td>
+              <td class="participar-links-cell participar-links-label"><label>Rótulo 2<input type="text" name="link_label_2" maxlength="30" placeholder="rótulo" autocomplete="off" class="participar-input"></label></td>
+              <td class="participar-links-cell participar-links-url"><label>URL 2<input type="url" name="link_url_2" maxlength="220" placeholder="https://..." autocomplete="off" class="participar-input"></label></td>
             </tr>
             <tr>
-              <td>Link 3 — rótulo / URL</td>
-              <td><input type="text" name="link_label_3" maxlength="30" placeholder="rótulo" autocomplete="off"> <input type="url" name="link_url_3" maxlength="220" placeholder="https://..." autocomplete="off"></td>
+              <td class="participar-links-cell participar-links-label"><label>Rótulo 3<input type="text" name="link_label_3" maxlength="30" placeholder="rótulo" autocomplete="off" class="participar-input"></label></td>
+              <td class="participar-links-cell participar-links-url"><label>URL 3<input type="url" name="link_url_3" maxlength="220" placeholder="https://..." autocomplete="off" class="participar-input"></label></td>
             </tr>
             <tr>
-              <td>Link 4 — rótulo / URL</td>
-              <td><input type="text" name="link_label_4" maxlength="30" placeholder="rótulo" autocomplete="off"> <input type="url" name="link_url_4" maxlength="220" placeholder="https://..." autocomplete="off"></td>
+              <td class="participar-links-cell participar-links-label"><label>Rótulo 4<input type="text" name="link_label_4" maxlength="30" placeholder="rótulo" autocomplete="off" class="participar-input"></label></td>
+              <td class="participar-links-cell participar-links-url"><label>URL 4<input type="url" name="link_url_4" maxlength="220" placeholder="https://..." autocomplete="off" class="participar-input"></label></td>
             </tr>
+          </table>
+          </fieldset>
 
+          <table class="participar-form-table" width="100%" cellpadding="0" cellspacing="0" style="margin-top:14px">
             <tr>
               <td colspan="2">
                 <h2>Dados de quem está enviando</h2>
@@ -355,36 +361,28 @@
               </td>
             </tr>
             <tr>
-              <td>Instagram</td>
-              <td><input type="text" name="instagram" maxlength="150" placeholder="@seuperfil" autocomplete="off"></td>
+              <td class="participar-label-cell">Instagram</td>
+              <td><input type="text" name="instagram" maxlength="150" placeholder="@seuperfil" autocomplete="off" class="participar-input"></td>
             </tr>
             <tr>
-              <td>Telefone</td>
-              <td><input type="text" name="telefone" maxlength="150" placeholder="(00) 00000-0000" autocomplete="off"></td>
+              <td class="participar-label-cell">Telefone</td>
+              <td><input type="text" name="telefone" maxlength="150" placeholder="(00) 00000-0000" autocomplete="off" class="participar-input"></td>
             </tr>
             <tr>
-              <td>Email</td>
-              <td><input type="email" name="email" maxlength="150" autocomplete="off"></td>
-            </tr>
-
-            <!-- Honeypot decoy (SEC-SUBMIT-02/Pitfall 3): off-canvas via position:absolute,
-                 nao display:none isolado; invisivel a humanos e leitores de tela, visivel a bots ingenuos. -->
-            <tr>
-              <td colspan="2">
-                <div style="position:absolute;left:-9999px" aria-hidden="true">
-                  <label for="website-field">Website (nao preencher)</label>
-                  <input type="text" id="website-field" name="website" tabindex="-1" autocomplete="off">
-                </div>
-              </td>
-            </tr>
-
-            <tr>
-              <td colspan="2">
-                <button type="submit" id="participar-submit-btn">Enviar indicação</button>
-                <div id="participar-status" aria-live="polite"></div>
-              </td>
+              <td class="participar-label-cell">Email</td>
+              <td><input type="email" name="email" maxlength="150" autocomplete="off" class="participar-input"></td>
             </tr>
           </table>
+
+          <!-- Honeypot decoy (SEC-SUBMIT-02/Pitfall 3): off-canvas via position:absolute,
+               nao display:none isolado; invisivel a humanos e leitores de tela, visivel a bots ingenuos. -->
+          <div style="position:absolute;left:-9999px" aria-hidden="true">
+            <label for="website-field">Website (nao preencher)</label>
+            <input type="text" id="website-field" name="website" tabindex="-1" autocomplete="off">
+          </div>
+
+          <button type="submit" id="participar-submit-btn" class="participar-primary">Enviar indicação</button>
+          <div id="participar-status" aria-live="polite"></div>
           </form>
 
           <p>Avaliamos todos os envios. Priorizamos as faixas que chegarem com mais informações preenchidas. Não garantimos publicação, mas respondemos a todos.</p>
