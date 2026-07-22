@@ -199,15 +199,14 @@ def test_health_redis_down(api_client):
 # ---------------------------------------------------------------------------
 
 def test_body_size_limit(api_client):
-    """SEC-TEST-01: POST /jobs com body > 8KB retorna 413 com error_type='request_error'.
+    """SEC-TEST-01: POST /jobs com body > 11KB retorna 413 com error_type='request_error'.
 
     Middleware _limit_body_size em api/main.py JA implementa este controle.
-    Limite subiu de 5120 para 8192 bytes (SEC-SUBMIT-04, caps de campo
-    150/350 -> 300/700) — payload de teste ajustado para ficar acima do
-    novo teto. Stub documenta o contrato.
+    Limite subiu de 8192 para 11264 bytes (SEC-SUBMIT-04, artistas/produtores
+    3 -> 5) — payload de teste ajustado para ficar acima do novo teto.
     """
-    large = "A" * 9000
-    r = api_client.post("/jobs", content=large, headers={"Content-Length": "9000"})
+    large = "A" * 12000
+    r = api_client.post("/jobs", content=large, headers={"Content-Length": "12000"})
     assert r.status_code == 413, f"esperado 413, obtido {r.status_code}: {r.text}"
     body = r.json()
     assert body.get("error_type") == "request_error", f"error_type errado: {body}"
@@ -918,8 +917,8 @@ def test_updates_redis_fallback(api_client, tmp_path, monkeypatch):
 def _submission_payload(contato=None, website="", links=None, produtores=None, titulo="Faixa de Teste"):
     """Payload valido de submissao publica.
 
-    Respeita os caps apertados travados no Plan 16-02/16-06 (artistas<=3,
-    produtores<=3, links<=4, titulo/genero/nome/contato<=300, descricao<=700)
+    Respeita os caps apertados travados no Plan 16-02/16-06 (artistas<=5,
+    produtores<=5, links<=4, titulo/genero/nome/contato<=300, descricao<=700)
     para que o payload continue valido quando os modelos existirem.
     """
     return {
@@ -989,22 +988,23 @@ def test_post_submission_requires_one_contact(api_client):
 
 
 def test_submission_produtores_cap(api_client):
-    """SUBMIT-02/D-14: produtores aceita ate 3 (paridade com artistas na UI publica),
-    rejeitando o 4o com 422. Cap subiu de 1->3; corpo com 3 produtores continua
-    abaixo de _MAX_BODY_BYTES=8192 (remedido — ver SubmissionRequest docstring).
+    """SUBMIT-02/D-14: produtores aceita ate 5 (paridade com artistas na UI publica),
+    rejeitando o 6o com 422. Cap subiu de 3->5; corpo com 5 produtores + 5
+    artistas continua abaixo de _MAX_BODY_BYTES=11264 (remedido — ver
+    SubmissionRequest docstring).
     """
     produtor = {"nome": "Beatmaker", "url": ""}
 
-    payload_ok = _submission_payload(produtores=[produtor, produtor, produtor], titulo="Faixa OK 3 produtores")
+    payload_ok = _submission_payload(produtores=[produtor] * 5, titulo="Faixa OK 5 produtores")
     response_ok = api_client.post("/submissions", json=payload_ok)
     assert response_ok.status_code == 202, (
-        f"3 produtores deveria ser aceito (202), recebeu {response_ok.status_code}: {response_ok.text}"
+        f"5 produtores deveria ser aceito (202), recebeu {response_ok.status_code}: {response_ok.text}"
     )
 
-    payload_over = _submission_payload(produtores=[produtor, produtor, produtor, produtor], titulo="Faixa 4 produtores")
+    payload_over = _submission_payload(produtores=[produtor] * 6, titulo="Faixa 6 produtores")
     response_over = api_client.post("/submissions", json=payload_over)
     assert response_over.status_code == 422, (
-        f"4 produtores deveria ser rejeitado (422), recebeu {response_over.status_code}: {response_over.text}"
+        f"6 produtores deveria ser rejeitado (422), recebeu {response_over.status_code}: {response_over.text}"
     )
 
 

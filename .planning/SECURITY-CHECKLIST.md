@@ -77,9 +77,9 @@
 
 ## 3. HTTP Hardening (controles ja implementados em api/main.py)
 
-### SEC-TEST-01 — Body size limit 8KB
+### SEC-TEST-01 — Body size limit 11KB
 
-- [ ] Middleware `_limit_body_size` retorna 413 para `Content-Length > 8192` (subiu de 5120 — SEC-SUBMIT-04, caps de campo 150/350 -> 300/700)
+- [ ] Middleware `_limit_body_size` retorna 413 para `Content-Length > 11264` (subiu de 8192 — SEC-SUBMIT-04, artistas/produtores 3 -> 5)
 - **Verificacao:** `pytest tests/test_security.py::test_body_size_limit -x`
 - **Threat:** Memory exhaustion via body injection
 
@@ -267,10 +267,10 @@
 - **Verificacao:** `pytest tests/test_security.py::test_get_submissions_requires_admin tests/test_security.py::test_patch_submission_requires_csrf tests/test_security.py::test_reject_and_archive_submission tests/test_security.py::test_submission_admin_mutations_require_csrf -x`
 - **Threat:** Spoofing / Tampering — sessao roubada/CSRF poderia forjar edicao, transicao de status ou publicacao
 
-### SEC-SUBMIT-04 — Body size 8KB cobre o payload de cardinalidade maxima
+### SEC-SUBMIT-04 — Body size 11KB cobre o payload de cardinalidade maxima
 
 - [x] Nenhuma excecao de path adicionada em `_limit_body_size` para `/submissions` ou `/yonkou/submissions/{id}`
-- [x] Produtores subiu de <=1 para <=3 (paridade com artistas na UI publica); titulo/genero/nome/contato subiram de <=150 para <=300 e descricao de <=350 para <=700 (calibragem pedida explicitamente pelo usuario) — caps do Plan 16-02/16-06 mantem o payload publico maximo em 6676 bytes e o payload admin de edicao em 6661 bytes — ambos abaixo de `_MAX_BODY_BYTES=8192` (subiu de 5120 junto, remedido e documentado em STATE.md Key Decisions)
+- [x] Artistas/produtores subiram de <=3 para <=5 (pedido explicito do usuario); titulo/genero/nome/contato<=300, descricao<=700 — caps do Plan 16-02/16-06 mantem o payload publico maximo em 8776 bytes e o payload admin de edicao em 8761 bytes — ambos abaixo de `_MAX_BODY_BYTES=11264` (subiu de 8192 junto, remedido e documentado em STATE.md Key Decisions)
 - **Verificacao:** `pytest tests/test_security.py::test_submission_body_size_enforced -x`
 - **Threat:** Denial of Service — corpo oversized nao deve chegar ao parsing Pydantic (413 antes de 500)
 

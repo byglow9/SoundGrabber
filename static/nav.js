@@ -105,14 +105,14 @@ document.addEventListener('DOMContentLoaded', function () {
     return el ? String(el.value || '').trim() : '';
   }
 
-  // ── Artistas (1-3, min 1) e Produtores (0-3, default 1) — mesmo padrao
+  // ── Artistas (1-5, min 1) e Produtores (0-5, default 1) — mesmo padrao
   // visual/JS do editor Yonkou (createArtistaRow/wireArtistasList em
   // yonkou.js), com os caps de SubmissionRequest (api/main.py:
-  // artistas<=3, produtores<=1). PLURAL_OF existe porque "produtor" pluraliza
+  // artistas<=5, produtores<=5). PLURAL_OF existe porque "produtor" pluraliza
   // de forma irregular (produtorES, nao produtorS) — usar um mapa evita
   // reintroduzir esse bug de concatenacao em cada novo call site.
   var PLURAL_OF = { artista: 'artistas', produtor: 'produtores' };
-  var MAX_OF = { artista: 3, produtor: 3 };
+  var MAX_OF = { artista: 5, produtor: 5 };
 
   function createParticiparPersonRow(kind, nome, url) {
     var row = document.createElement('div');

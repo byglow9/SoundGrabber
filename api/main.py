@@ -289,8 +289,8 @@ class FeaturedReleaseRequest(BaseModel):
 # Phase 16 (SUBMIT-02/SEC-SUBMIT-04): modelos PUBLICOS da submissao "Participar do
 # Som da Semana". Distintos de FeaturedArtist/FeaturedLink (que mantem seus caps
 # admin 200/500) com caps MAIS APERTADOS (nome<=300/url<=200, label<=30/url<=220)
-# para que o payload de cardinalidade maxima (3 artistas + 3 produtores + 4 links,
-# todos os campos no cap) fique medido em 6676 bytes — abaixo de _MAX_BODY_BYTES=8192
+# para que o payload de cardinalidade maxima (5 artistas + 5 produtores + 4 links,
+# todos os campos no cap) fique medido em 8776 bytes — abaixo de _MAX_BODY_BYTES=11264
 # (Pitfall 2). Todo campo de texto livre passa por _reject_control_and_bidi_chars
 # (SEC-SUBMIT-08) alem do cap de tamanho. NAO reutilizar FeaturedArtist/FeaturedLink
 # aqui.
@@ -380,10 +380,10 @@ class SubmissionRequest(BaseModel):
     """Payload publico de 'Participar do Som da Semana' (SUBMIT-02/03/09).
 
     Caps de campo (titulo/genero/nome/contato<=300, descricao<=700) E de lista
-    (artistas<=3, produtores<=3, links<=4) sao deliberadamente mais apertados
+    (artistas<=5, produtores<=5, links<=4) sao deliberadamente mais apertados
     que FeaturedReleaseRequest (uso admin) — a combinacao mantem o payload de
     cardinalidade MAXIMA (todo campo no cap, todo slot de lista preenchido)
-    medido em 6676 bytes, abaixo de _MAX_BODY_BYTES=8192 com ~1516 bytes de
+    medido em 8776 bytes, abaixo de _MAX_BODY_BYTES=11264 com ~2488 bytes de
     margem (SEC-SUBMIT-04 / Pitfall 2). Todo campo de texto livre tambem passa
     por _reject_control_and_bidi_chars (SEC-SUBMIT-08) — bloqueia caracteres
     de controle ASCII e overrides Unicode bidi/zero-width (spoofing visual
@@ -432,15 +432,15 @@ class SubmissionRequest(BaseModel):
     def artistas_required(cls, value: list) -> list:
         if not value:
             raise ValueError("At least one artist is required")
-        if len(value) > 3:
-            raise ValueError("Submission supports at most 3 artists")
+        if len(value) > 5:
+            raise ValueError("Submission supports at most 5 artists")
         return value
 
     @field_validator("produtores")
     @classmethod
-    def max_three_produtores(cls, value: list) -> list:
-        if len(value) > 3:
-            raise ValueError("Submission supports at most 3 producers")
+    def max_five_produtores(cls, value: list) -> list:
+        if len(value) > 5:
+            raise ValueError("Submission supports at most 5 producers")
         return value
 
     @field_validator("links")
@@ -456,8 +456,8 @@ class SubmissionEditRequest(BaseModel):
 
     Mesmos campos e caps apertados de SubmissionRequest (Plan 16-02), MENOS o
     honeypot 'website' (decoy publico, sem sentido no fluxo admin). Sem o
-    'website', o corpo de cardinalidade MAXIMA fica em 6661 bytes (medido),
-    ainda abaixo de _MAX_BODY_BYTES=8192 — nenhuma excecao de path necessaria.
+    'website', o corpo de cardinalidade MAXIMA fica em 8761 bytes (medido),
+    ainda abaixo de _MAX_BODY_BYTES=11264 — nenhuma excecao de path necessaria.
     """
 
     artistas: list[SubmissionArtist]
@@ -499,15 +499,15 @@ class SubmissionEditRequest(BaseModel):
     def artistas_required(cls, value: list) -> list:
         if not value:
             raise ValueError("At least one artist is required")
-        if len(value) > 3:
-            raise ValueError("Submission supports at most 3 artists")
+        if len(value) > 5:
+            raise ValueError("Submission supports at most 5 artists")
         return value
 
     @field_validator("produtores")
     @classmethod
-    def max_three_produtores(cls, value: list) -> list:
-        if len(value) > 3:
-            raise ValueError("Submission supports at most 3 producers")
+    def max_five_produtores(cls, value: list) -> list:
+        if len(value) > 5:
+            raise ValueError("Submission supports at most 5 producers")
         return value
 
     @field_validator("links")
@@ -1578,8 +1578,8 @@ app = FastAPI(
 
 app.state.limiter = limiter
 
-_MAX_BODY_BYTES = 8 * 1024  # 8 KB — SEC-SUBMIT-04: acomoda os caps de campo 300/700
-# (subiu de 5KB; ver SubmissionRequest docstring e STATE.md Key Decisions) e ainda
+_MAX_BODY_BYTES = 11 * 1024  # 11 KB — SEC-SUBMIT-04: acomoda 5 artistas + 5 produtores
+# (subiu de 8KB; ver SubmissionRequest docstring e STATE.md Key Decisions) e ainda
 # excede em muito qualquer JobRequest (so uma URL) ou payload de edicao legitimo.
 _ANALYZE_MAX_BYTES = 50 * 1024 * 1024  # 50 MB — legitimate audio file upload (WAV ~5min, MP3 ~45min)
 _ANALYZE_MULTIPART_OVERHEAD_BYTES = 1024 * 1024
