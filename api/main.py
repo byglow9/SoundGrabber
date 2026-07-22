@@ -788,6 +788,22 @@ def _save_featured_next(payload: dict) -> None:
     _write_featured_next_fallback(payload)
 
 
+def _clear_featured_next() -> None:
+    """SUBMIT-07/D-06: limpa o slot estagiado apos a publicacao. DELETE (nao um
+    set com dict vazio) para que _redis.get(FEATURED_NEXT_KEY) retorne None,
+    igual ao contrato de _load_featured_next()."""
+    try:
+        _redis.delete(FEATURED_NEXT_KEY)
+    except (redis_lib.exceptions.ConnectionError, redis_lib.exceptions.TimeoutError):
+        pass
+    fallback_path = _featured_next_fallback_path()
+    if fallback_path.exists():
+        try:
+            fallback_path.unlink()
+        except OSError:
+            logger.exception("failed to remove featured next fallback file")
+
+
 def _admin_serializer() -> URLSafeTimedSerializer:
     secret = settings.admin_session_secret
     if not secret:
@@ -1848,6 +1864,25 @@ def patch_release(
         payload["data_adicao"] = existing_data_adicao
     _save_featured(payload)
     return payload
+
+
+@app.post("/yonkou/releases/publish-next", dependencies=[Depends(_admin_csrf_dependency)])
+@limiter.limit("10/minute")
+def publish_next_release(request: Request, response: Response) -> dict:
+    """SUBMIT-07/D-06: publica o release estagiado em featured:next. O antigo
+    featured:current (se existir) vai para featured:history antes de ser
+    substituido; featured:next e limpo ao final."""
+    next_doc = _load_featured_next()
+    if not next_doc:
+        raise HTTPException(
+            status_code=404, detail="Nenhum som em featured:next para publicar"
+        )
+    current = _load_featured()
+    if current:
+        _append_to_history(current)
+    _save_featured(next_doc)
+    _clear_featured_next()
+    return next_doc
 
 
 @app.get("/yonkou/releases", dependencies=[Depends(_admin_required_dependency)])
