@@ -1204,6 +1204,18 @@ body.yonkou-login-page {
   border-color: #ff6600;
 }
 
+#participar-status {
+  display: block;
+  margin-top: 12px;
+  font-family: 'Sligoil', 'Courier New', monospace;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+#participar-status.error {
+  color: #ff4444;
+}
+
 #yonkou-form-table,
 .participar-form-table {
   margin-top: 6px;
