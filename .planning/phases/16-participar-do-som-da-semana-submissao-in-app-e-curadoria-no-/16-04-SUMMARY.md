@@ -117,3 +117,14 @@ None - no external service configuration required.
 ---
 *Phase: 16-participar-do-som-da-semana-submissao-in-app-e-curadoria-no-*
 *Completed: 2026-07-22*
+
+## Self-Check: PASSED
+
+- FOUND: api/main.py
+- FOUND: .planning/SECURITY-CHECKLIST.md
+- FOUND: .planning/REQUIREMENTS.md
+- FOUND: .planning/phases/16-participar-do-som-da-semana-submissao-in-app-e-curadoria-no-/16-04-SUMMARY.md
+- FOUND commit 321c40e (Task 1: derive helper + POST promote endpoint)
+- FOUND commit 11aa361 (Task 2: POST publish-next endpoint)
+- FOUND commit d1d2065 (docs: SECURITY-CHECKLIST.md deviation)
+- FOUND commit 1427a1e (docs: plan metadata — SUMMARY.md + REQUIREMENTS.md)
