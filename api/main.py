@@ -49,7 +49,7 @@ ADMIN_SESSION_MAX_AGE = 60 * 60 * 24 * 7
 # (List append-only), pois submissoes sao mutaveis e status-tracked.
 SUBMISSIONS_DATA_KEY = "submissions:data"
 SUBMISSIONS_INDEX_KEY = "submissions:index"
-SUBMISSION_TERMINAL_STATUSES = {"rejeitada", "arquivada"}
+SUBMISSION_TERMINAL_STATUSES = {"rejeitada", "arquivada", "publicada"}
 # Phase 16 (SUBMIT-06/D-06): release promovido, aguardando publicacao explicita
 # via /yonkou/releases/publish-next (Plan 16-04) — nao toca featured:current.
 FEATURED_NEXT_KEY = "featured:next"
@@ -1189,6 +1189,7 @@ def _operator_panel_html(
 <button type="button" id="tab-updates-btn" class="yonkou-tab">Notas de Atualização</button>
 <button type="button" id="tab-submissoes-btn" class="yonkou-tab">Submissões</button>
 </div>
+<div id="yonkou-message"></div>
 <div id="tab-som-panel">
 <table width="100%" cellpadding="0" cellspacing="10" id="dashboard-table">
 <tr>
@@ -1449,7 +1450,6 @@ def _operator_panel_html(
 <button type="submit" class="yonkou-primary">Salvar</button>
 </form>
 </div>
-<div id="yonkou-message"></div>
 <script src="/static/featured-card.js"></script>
 <script src="/static/yonkou.js"></script>
 </td></tr>
@@ -1986,7 +1986,13 @@ def patch_release(
 def publish_next_release(request: Request, response: Response) -> dict:
     """SUBMIT-07/D-06: publica o release estagiado em featured:next. O antigo
     featured:current (se existir) vai para featured:history antes de ser
-    substituido; featured:next e limpo ao final."""
+    substituido; featured:next e limpo ao final.
+
+    Se o release estagiado veio de uma submissao (source_submission_id — ver
+    _promote_submission), marca essa submissao como 'publicada'. Sem isso o
+    status ficava travado em 'promovida' para sempre, mesmo apos a publicacao
+    de fato acontecer — o operador nao tinha nenhuma confirmacao visivel na
+    aba Submissões de que o Publicar funcionou."""
     next_doc = _load_featured_next()
     if not next_doc:
         raise HTTPException(
@@ -1997,6 +2003,11 @@ def publish_next_release(request: Request, response: Response) -> dict:
         _append_to_history(current)
     _save_featured(next_doc)
     _clear_featured_next()
+    source_submission_id = next_doc.get("source_submission_id")
+    if source_submission_id:
+        source_submission = _get_submission(source_submission_id)
+        if source_submission:
+            _update_submission({**source_submission, "status": "publicada"})
     return next_doc
 
 

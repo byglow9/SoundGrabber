@@ -1209,6 +1209,15 @@ def test_publish_next_moves_current_to_history(api_client):
     )
     assert _redis.get("featured:next") is None, "featured:next deveria ser limpo apos a publicacao"
 
+    listing_after = api_client.get("/yonkou/submissions", headers=_csrf_headers(csrf_token))
+    match_after = next(
+        (item for item in listing_after.json() if item.get("id") == match["id"]), None
+    )
+    assert match_after and match_after.get("status") == "publicada", (
+        "submissao de origem (source_submission_id) deveria virar 'publicada' apos "
+        f"publish-next, para o operador ter confirmacao visivel na aba Submissões: {match_after}"
+    )
+
 
 def test_reject_and_archive_submission(api_client):
     """SUBMIT-08/D-05: reject depois archive transicionam o status corretamente

@@ -295,6 +295,7 @@
 - [x] `POST /yonkou/releases/publish-next` move `featured:next` -> `featured:current`, envia o `featured:current` antigo para `featured:history` (`_append_to_history`), e limpa `featured:next` (`_clear_featured_next` faz `DELETE`, nao um `SET` com dict vazio, para que `_redis.get("featured:next")` volte `None`)
 - [x] Sem `featured:next` estagiado, `publish-next` retorna 404 (nada a publicar)
 - [x] Re-promover re-deriva `featured:next` idempotentemente a partir dos campos atuais da submissao (decisao de nivel de tarefa, Open Question #1 do 16-RESEARCH.md)
+- [x] `publish-next` marca a submissao de origem (`source_submission_id`, gravado por `_promote_submission`) como `publicada` — antes o status ficava travado em `promovida` para sempre e o operador nao tinha confirmacao visivel na aba Submissões de que Publicar funcionou. `publicada` foi adicionada a `SUBMISSION_TERMINAL_STATUSES` (evictavel pelo cap de retencao, SUBMIT-09)
 - **Verificacao:** `pytest tests/test_security.py::test_promote_submission_writes_featured_next tests/test_security.py::test_publish_next_moves_current_to_history -x`
 - **Threat:** Tampering — publicacao imediata sem o passo de revisao intermediario violaria D-06
 

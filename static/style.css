@@ -1146,6 +1146,13 @@ body.yonkou-login-page {
   margin-bottom: 0;
 }
 
+#yonkou-message:not(:empty) {
+  padding: 8px 10px;
+  border-left: 3px solid #ff8800;
+  background-color: rgba(255, 136, 0, 0.08);
+  margin-bottom: 14px;
+}
+
 .yonkou-form,
 .participar-form {
   margin: 0;

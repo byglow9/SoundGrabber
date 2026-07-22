@@ -504,6 +504,7 @@ var _currentSubmissaoId = null;
 var SUBMISSAO_STATUS_LABELS = {
   pendente: 'Pendente',
   promovida: 'Promovida',
+  publicada: 'Publicada',
   rejeitada: 'Rejeitada',
   arquivada: 'Arquivada'
 };
