@@ -359,3 +359,149 @@ def test_updates_static_js_contract():
     assert "fetch('/updates?limit=3')" in app_js
     assert "textContent" in updates_js
     assert "innerHTML" not in updates_js
+
+
+# ---------------------------------------------------------------------------
+# Phase 16: Participar do Som da Semana — formulario publico + aba Submissões
+#
+# RED stubs criados em Plan 16-01 (Wave 0). GREEN em:
+#   Plan 16-05 (Wave 4): formulario Y2K em #section-participar + nav.js wiring.
+#   Plan 16-06 (Wave 5): aba "Submissões" no painel Yonkou.
+# ---------------------------------------------------------------------------
+
+def test_participar_form_is_table_based(api_client):
+    """SUBMIT-10/VISUAL-04: #section-participar contem um <form> com <table>,
+    sem flexbox/grid inline — mantem a autenticidade Y2K.
+
+    RED: #section-participar ainda usa o fluxo antigo de email/copy-template
+    (Plan 16-05 substitui pelo formulario real).
+    """
+    response = api_client.get("/")
+    assert response.status_code == 200, response.text
+    html = response.text
+
+    section_start = html.find('id="section-participar"')
+    assert section_start != -1, 'id="section-participar" nao encontrado no HTML'
+    section_html = html[section_start:section_start + 4000]
+
+    assert "<form" in section_html, (
+        "#section-participar deve conter um <form> real que faz POST /submissions"
+    )
+    assert "<table" in section_html, (
+        "#section-participar deve usar <table> para o layout do formulario (Y2K)"
+    )
+    assert "display: flex" not in section_html and "display:flex" not in section_html, (
+        "formulario nao deve usar 'display: flex' inline — viola autenticidade Y2K"
+    )
+    assert "display: grid" not in section_html and "display:grid" not in section_html, (
+        "formulario nao deve usar 'display: grid' inline — viola autenticidade Y2K"
+    )
+
+
+def test_participar_form_required_youtube_field(api_client):
+    """SUBMIT-10/D-11: formulario tem um campo youtube_url obrigatorio.
+
+    RED: campo ainda nao existe (Plan 16-05).
+    """
+    response = api_client.get("/")
+    assert response.status_code == 200, response.text
+    html = response.text
+    assert 'name="youtube_url"' in html, 'formulario deve conter um input name="youtube_url"'
+
+    section_start = html.find('id="section-participar"')
+    section_html = html[section_start:section_start + 4000] if section_start != -1 else ""
+    youtube_input_idx = section_html.find('name="youtube_url"')
+    assert youtube_input_idx != -1, "input youtube_url deve estar dentro de #section-participar"
+    surrounding = section_html[max(0, youtube_input_idx - 100):youtube_input_idx + 200]
+    assert "required" in surrounding, (
+        f"input youtube_url deve ter o atributo 'required' (D-11): {surrounding!r}"
+    )
+
+
+def test_participar_form_has_contact_section(api_client):
+    """SUBMIT-10/D-08: formulario tem secao "Dados de quem esta enviando" com
+    instagram, telefone, email.
+
+    RED: secao de contato ainda nao existe (Plan 16-05).
+    """
+    response = api_client.get("/")
+    assert response.status_code == 200, response.text
+    html = response.text
+    assert 'name="instagram"' in html, 'formulario deve conter um input name="instagram"'
+    assert 'name="telefone"' in html, 'formulario deve conter um input name="telefone"'
+    assert 'name="email"' in html, 'formulario deve conter um input name="email"'
+
+
+def test_participar_form_has_privacy_note(api_client):
+    """SUBMIT-11/D-09: formulario contem uma nota curta de consentimento/privacidade.
+
+    RED: nota ainda nao existe (Plan 16-05).
+    """
+    response = api_client.get("/")
+    assert response.status_code == 200, response.text
+    html = response.text
+    section_start = html.find('id="section-participar"')
+    assert section_start != -1, 'id="section-participar" nao encontrado no HTML'
+    section_html = html[section_start:section_start + 6000]
+    assert "privacidade" in section_html.lower(), (
+        "formulario deve conter uma nota de consentimento/privacidade referenciando "
+        "a Politica de Privacidade (D-09)"
+    )
+
+
+def test_participar_honeypot_field_hidden_off_canvas(api_client):
+    """SEC-SUBMIT-02/Pitfall 3: existe um campo decoy escondido via CSS off-canvas
+    (position:absolute;left:-9999px), NAO 'display:none' isolado, e nao chamado
+    literalmente "honeypot" no markup.
+
+    RED: campo decoy ainda nao existe (Plan 16-05).
+    """
+    response = api_client.get("/")
+    assert response.status_code == 200, response.text
+    html = response.text
+    assert "left:-9999px" in html or "left: -9999px" in html, (
+        "campo decoy deve ser escondido via position:absolute;left:-9999px (Pitfall 3)"
+    )
+    assert 'id="honeypot"' not in html.lower() and 'name="honeypot"' not in html.lower(), (
+        "campo decoy nao deve se chamar literalmente 'honeypot' no markup (Pitfall 3)"
+    )
+    assert 'name="website"' in html, (
+        "campo decoy publico deve se chamar 'website' (nome plausivel — Pitfall 3 / Plan 16-02)"
+    )
+
+
+def test_participar_email_copy_template_removed(api_client):
+    """SUBMIT-10: o fluxo antigo de copiar template + mailto foi removido.
+
+    RED: copy-template-btn/participarTemplate ainda existem hoje (Plan 16-05 remove).
+    """
+    response = api_client.get("/")
+    assert response.status_code == 200, response.text
+    html = response.text
+    assert "copy-template-btn" not in html, "botao de copiar template deve ter sido removido"
+    assert "mailto:contato@soundgrabber.com.br" not in html, (
+        "fluxo de envio por email deve ter sido removido do HTML"
+    )
+
+    nav_js = (PROJECT_ROOT / "static" / "nav.js").read_text(encoding="utf-8")
+    assert "participarTemplate" not in nav_js, (
+        "array participarTemplate deve ter sido removido de nav.js"
+    )
+    assert "copy-template-btn" not in nav_js, (
+        "wiring de copy-template-btn deve ter sido removido de nav.js"
+    )
+
+
+def test_yonkou_has_submissions_tab(api_client):
+    """SUBMIT-04/06/07/08: painel operador expoe uma aba "Submissões".
+
+    RED: tab-submissoes-btn ainda nao existe em _operator_panel_html (Plan 16-06).
+    """
+    login = api_client.post("/yonkou/login", json={"password": "correct horse"})
+    assert login.status_code in (200, 303), login.text
+
+    panel = api_client.get("/yonkou")
+    assert panel.status_code == 200, panel.text
+    assert 'id="tab-submissoes-btn"' in panel.text, (
+        'painel operador deve conter o botao da aba Submissões (id="tab-submissoes-btn")'
+    )

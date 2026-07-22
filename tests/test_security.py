@@ -883,3 +883,415 @@ def test_updates_redis_fallback(api_client, tmp_path, monkeypatch):
     assert fallback_path.exists()
     stored = json.loads(fallback_path.read_text(encoding="utf-8"))
     assert stored[0]["categoria"] == "audio"
+
+
+# ---------------------------------------------------------------------------
+# Phase 16: Participar do Som da Semana — submissao publica + curadoria admin
+#
+# RED stubs criados em Plan 16-01 (Wave 0). GREEN em:
+#   Plan 16-02 (Wave 2): modelos SubmissionRequest/SubmissionContact + storage
+#                        Hash+SortedSet (submissions:data/submissions:index) +
+#                        featured:next helpers.
+#   Plan 16-03 (Wave 3): POST /submissions + GET/PATCH/reject/archive admin.
+#   Plan 16-04 (Wave 4): promote (featured:next) + publish-next
+#                        (featured:next -> featured:current -> featured:history).
+#
+# Cobertura:
+#   SUBMIT-01   -> test_post_submission_returns_success
+#   SUBMIT-02   -> test_post_submission_validates_required_fields
+#   SUBMIT-03   -> test_post_submission_requires_one_contact
+#   SUBMIT-04   -> test_get_submissions_requires_admin
+#   SUBMIT-05   -> test_patch_submission_requires_csrf
+#   SUBMIT-06   -> test_promote_submission_writes_featured_next
+#   SUBMIT-07   -> test_publish_next_moves_current_to_history
+#   SUBMIT-08   -> test_reject_and_archive_submission
+#   SUBMIT-09   -> test_submissions_cap_evicts_terminal_only
+#   SEC-SUBMIT-01 -> test_submission_rate_limit
+#   SEC-SUBMIT-02 -> test_submission_honeypot_silently_dropped
+#   SEC-SUBMIT-03 -> test_submission_admin_mutations_require_csrf
+#   SEC-SUBMIT-04 -> test_submission_body_size_enforced
+#   SEC-SUBMIT-05 -> test_submission_response_excludes_contact
+# ---------------------------------------------------------------------------
+
+def _submission_payload(contato=None, website="", links=None, produtores=None, titulo="Faixa de Teste"):
+    """Payload valido de submissao publica.
+
+    Respeita os caps apertados travados no Plan 16-02 (artistas<=3, produtores<=1,
+    links<=4, titulo/genero<=150, descricao<=350, contato<=150 cada campo) para que
+    o payload continue valido quando os modelos existirem.
+    """
+    return {
+        "artistas": [{"nome": "MC Underground", "url": ""}],
+        "produtores": produtores if produtores is not None else [],
+        "titulo": titulo,
+        "genero": "phonk",
+        "youtube_url": "https://www.youtube.com/watch?v=abc123def45",
+        "descricao": "Beat autoral enviado para curadoria semanal.",
+        "links": links if links is not None else [],
+        "contato": contato if contato is not None else {
+            "instagram": "@mcunderground",
+            "telefone": "",
+            "email": "",
+        },
+        # honeypot decoy (D-03/Pitfall 3) — campo publico chamado "website", NUNCA "honeypot".
+        "website": website,
+    }
+
+
+def test_post_submission_returns_success(api_client):
+    """SUBMIT-01: POST /submissions com payload valido retorna 202 e sucesso generico,
+    sem ecoar dados de contato no corpo da resposta.
+
+    RED: rota /submissions nao existe ainda. Plan 16-03 adiciona
+    @app.post("/submissions", status_code=202) com @limiter.limit(.../hour).
+    """
+    response = api_client.post("/submissions", json=_submission_payload())
+    assert response.status_code == 202, (
+        f"POST /submissions valido deveria ser 202, recebeu {response.status_code}: {response.text}"
+    )
+    body = response.json()
+    for leaked in ("instagram", "telefone", "email", "contato"):
+        assert leaked not in body, f"resposta publica nao deve ecoar '{leaked}': {body}"
+
+
+def test_post_submission_validates_required_fields(api_client):
+    """SUBMIT-02: titulo/genero/youtube_url/descricao sao obrigatorios via Pydantic
+    field_validator, retornando 422 no contrato unificado {error, error_type}.
+
+    RED: SubmissionRequest nao existe ainda (Plan 16-02).
+    """
+    for missing_field in ("titulo", "genero", "youtube_url", "descricao"):
+        payload = _submission_payload()
+        payload[missing_field] = ""
+        response = api_client.post("/submissions", json=payload)
+        assert response.status_code == 422, (
+            f"payload sem '{missing_field}' deveria ser 422, recebeu {response.status_code}: {response.text}"
+        )
+        body = response.json()
+        assert "error" in body and "error_type" in body, (
+            f"corpo de erro deve seguir o contrato unificado {{error, error_type}}: {body}"
+        )
+
+
+def test_post_submission_requires_one_contact(api_client):
+    """SUBMIT-03/D-08: contato com instagram/telefone/email todos vazios retorna 422.
+
+    RED: SubmissionContact.model_validator(mode="after") nao existe ainda (Plan 16-02) —
+    este e o primeiro model_validator do projeto.
+    """
+    payload = _submission_payload(contato={"instagram": "", "telefone": "", "email": ""})
+    response = api_client.post("/submissions", json=payload)
+    assert response.status_code == 422, (
+        f"contato totalmente vazio deveria ser 422, recebeu {response.status_code}: {response.text}"
+    )
+
+
+def test_submission_rate_limit(api_client):
+    """SEC-SUBMIT-01/D-04: 4a submissao na mesma hora pelo mesmo IP retorna 429 com Retry-After.
+
+    RED: rota /submissions e @limiter.limit(f"{{settings.submission_rate_limit_per_hour}}/hour")
+    nao existem ainda (Plan 16-03).
+    """
+    for i in range(3):
+        response = api_client.post("/submissions", json=_submission_payload(titulo=f"Faixa {i}"))
+        assert response.status_code == 202, (
+            f"submissao {i + 1}/3 deveria ser 202, recebeu {response.status_code}: {response.text}"
+        )
+    response = api_client.post("/submissions", json=_submission_payload(titulo="Faixa 4"))
+    assert response.status_code == 429, (
+        f"4a submissao na mesma hora deveria ser 429, recebeu {response.status_code}: {response.text}"
+    )
+    assert "Retry-After" in response.headers, (
+        f"resposta 429 deve conter header Retry-After: {dict(response.headers)}"
+    )
+
+
+def test_submission_honeypot_silently_dropped(api_client):
+    """SEC-SUBMIT-02/D-03: campo website (honeypot) preenchido retorna sucesso IDENTICO,
+    sem persistir a submissao — nunca revela ao remetente que foi detectado (Anti-Pattern).
+
+    RED: campo website e a rota /submissions nao existem ainda (Plans 16-02/16-03).
+    """
+    from api.main import _redis
+
+    clean_response = api_client.post("/submissions", json=_submission_payload(titulo="Legitima"))
+    bot_response = api_client.post(
+        "/submissions",
+        json=_submission_payload(titulo="Bot", website="http://spam.example"),
+    )
+
+    assert clean_response.status_code == 202, (
+        f"submissao legitima deveria ser 202, recebeu {clean_response.status_code}: {clean_response.text}"
+    )
+    assert bot_response.status_code == 202, (
+        f"submissao com honeypot preenchido deve retornar o MESMO status 202 de uma legitima, "
+        f"recebeu {bot_response.status_code}: {bot_response.text}"
+    )
+    assert bot_response.json() == clean_response.json(), (
+        f"honeypot preenchido nao deve retornar um corpo distinguivel: "
+        f"{bot_response.json()} vs {clean_response.json()}"
+    )
+    stored = _redis.hgetall("submissions:data")
+    titles = [json.loads(raw).get("titulo") for raw in stored.values()]
+    assert "Bot" not in titles, "submissao com honeypot preenchido NAO deve ser persistida"
+    assert "Legitima" in titles, "submissao legitima deve ser persistida normalmente"
+
+
+def test_submission_body_size_enforced(api_client):
+    """SEC-SUBMIT-04: payload de submissao acima do limite global de 4KB retorna 413
+    (nunca 500) — protecao via middleware _limit_body_size ja existente + caps
+    apertados do Plan 16-02 mantendo o payload legitimo maximo bem abaixo de 4KB.
+
+    RED: rota /submissions nao existe ainda (Plan 16-03).
+    """
+    payload = _submission_payload()
+    payload["descricao"] = "A" * 6000  # forca o corpo bruto acima de 4KB
+    response = api_client.post("/submissions", json=payload)
+    assert response.status_code in (413, 422), (
+        f"payload de submissao oversized deveria ser 413 ou 422, nunca 500, "
+        f"recebeu {response.status_code}: {response.text}"
+    )
+
+
+def test_submission_response_excludes_contact(api_client):
+    """SEC-SUBMIT-05: resposta de POST /submissions nunca inclui instagram/telefone/email/contato
+    em nenhum lugar do corpo — nem mesmo como substring.
+
+    RED: rota /submissions nao existe ainda (Plan 16-03).
+    """
+    payload = _submission_payload(contato={
+        "instagram": "@segredo",
+        "telefone": "11999999999",
+        "email": "contato@segredo.com",
+    })
+    response = api_client.post("/submissions", json=payload)
+    assert response.status_code == 202, (
+        f"POST /submissions valido deveria ser 202, recebeu {response.status_code}: {response.text}"
+    )
+    raw_body = response.text
+    for secret in ("@segredo", "11999999999", "contato@segredo.com", "instagram", "telefone", "email"):
+        assert secret not in raw_body, (
+            f"resposta publica vazou dado de contato ('{secret}'): {raw_body}"
+        )
+
+
+def test_get_submissions_requires_admin(api_client):
+    """SUBMIT-04: GET /yonkou/submissions sem sessao operador retorna 401.
+
+    RED: rota nao existe ainda (Plan 16-03).
+    """
+    response = api_client.get("/yonkou/submissions")
+    assert response.status_code == 401, (
+        f"GET /yonkou/submissions sem sg_admin deveria ser 401, recebeu {response.status_code}: {response.text}"
+    )
+
+
+def test_patch_submission_requires_csrf(api_client):
+    """SUBMIT-05/SEC-SUBMIT-03: PATCH /yonkou/submissions/{id} sem CSRF retorna 403.
+
+    RED: rota nao existe ainda (Plan 16-03).
+    """
+    _login_operator(api_client)
+    response = api_client.patch(
+        "/yonkou/submissions/fake-id",
+        json=_submission_payload(),
+    )
+    assert response.status_code == 403, (
+        f"PATCH /yonkou/submissions/{{id}} sem CSRF deveria ser 403, "
+        f"recebeu {response.status_code}: {response.text}"
+    )
+
+
+def test_promote_submission_writes_featured_next(api_client):
+    """SUBMIT-06/D-06/D-07: promover uma submissao popula featured:next SEM tocar
+    featured:current — a publicacao e um passo explicito separado.
+
+    RED: storage submissions:data/index e a rota de promote nao existem ainda
+    (Plans 16-02/16-04).
+    """
+    from api.main import _redis
+
+    csrf_token = _login_operator(api_client)
+    submit_response = api_client.post("/submissions", json=_submission_payload(titulo="Para Promover"))
+    assert submit_response.status_code == 202, submit_response.text
+
+    listing = api_client.get("/yonkou/submissions", headers=_csrf_headers(csrf_token))
+    assert listing.status_code == 200, listing.text
+    submissions = listing.json()
+    match = next((item for item in submissions if item.get("titulo") == "Para Promover"), None)
+    assert match, f"submissao 'Para Promover' nao encontrada na listagem admin: {submissions}"
+
+    before_current = _redis.get("featured:current")
+
+    promote_response = api_client.post(
+        f"/yonkou/submissions/{match['id']}/promote",
+        headers=_csrf_headers(csrf_token),
+    )
+    assert promote_response.status_code == 200, (
+        f"promover deveria retornar 200 com o release derivado, "
+        f"recebeu {promote_response.status_code}: {promote_response.text}"
+    )
+    assert _redis.get("featured:next") is not None, "promover deveria gravar featured:next"
+    assert _redis.get("featured:current") == before_current, (
+        "promover NAO deve alterar featured:current (D-06 — publicacao e passo separado)"
+    )
+
+
+def test_publish_next_moves_current_to_history(api_client):
+    """SUBMIT-07/D-06: publicar move featured:next -> featured:current, e o antigo
+    current vai para featured:history.
+
+    RED: rota /yonkou/releases/publish-next e o storage featured:next nao existem
+    ainda (Plans 16-02/16-04).
+    """
+    from api.main import _redis
+
+    csrf_token = _login_operator(api_client)
+
+    original = _featured_payload()
+    create_response = api_client.post(
+        "/yonkou/releases",
+        json=original,
+        headers=_csrf_headers(csrf_token),
+    )
+    assert create_response.status_code == 200, create_response.text
+
+    submit_response = api_client.post("/submissions", json=_submission_payload(titulo="Proximo Som"))
+    assert submit_response.status_code == 202, submit_response.text
+    listing = api_client.get("/yonkou/submissions", headers=_csrf_headers(csrf_token))
+    match = next((item for item in listing.json() if item.get("titulo") == "Proximo Som"), None)
+    assert match, f"submissao 'Proximo Som' nao encontrada: {listing.text}"
+
+    promote_response = api_client.post(
+        f"/yonkou/submissions/{match['id']}/promote",
+        headers=_csrf_headers(csrf_token),
+    )
+    assert promote_response.status_code == 200, promote_response.text
+
+    publish_response = api_client.post(
+        "/yonkou/releases/publish-next",
+        headers=_csrf_headers(csrf_token),
+    )
+    assert publish_response.status_code == 200, (
+        f"publicar deveria mover featured:next para featured:current, "
+        f"recebeu {publish_response.status_code}: {publish_response.text}"
+    )
+    published = publish_response.json()
+    assert published.get("titulo") == "Proximo Som", (
+        f"featured:current publicado deveria refletir a submissao promovida: {published}"
+    )
+
+    history = _redis.lrange("featured:history", 0, -1)
+    assert any(original["titulo"] in entry for entry in history), (
+        "o featured:current antigo deveria ter sido movido para featured:history"
+    )
+    assert _redis.get("featured:next") is None, "featured:next deveria ser limpo apos a publicacao"
+
+
+def test_reject_and_archive_submission(api_client):
+    """SUBMIT-08/D-05: reject depois archive transicionam o status corretamente
+    (pendente -> rejeitada -> arquivada).
+
+    RED: rotas /yonkou/submissions/{id}/reject e /archive nao existem ainda (Plan 16-03).
+    """
+    csrf_token = _login_operator(api_client)
+    submit_response = api_client.post("/submissions", json=_submission_payload(titulo="Para Rejeitar"))
+    assert submit_response.status_code == 202, submit_response.text
+    listing = api_client.get("/yonkou/submissions", headers=_csrf_headers(csrf_token))
+    match = next((item for item in listing.json() if item.get("titulo") == "Para Rejeitar"), None)
+    assert match, f"submissao 'Para Rejeitar' nao encontrada: {listing.text}"
+
+    reject_response = api_client.post(
+        f"/yonkou/submissions/{match['id']}/reject",
+        headers=_csrf_headers(csrf_token),
+    )
+    assert reject_response.status_code == 200, reject_response.text
+    assert reject_response.json().get("status") == "rejeitada", (
+        f"status deveria virar 'rejeitada': {reject_response.json()}"
+    )
+
+    archive_response = api_client.post(
+        f"/yonkou/submissions/{match['id']}/archive",
+        headers=_csrf_headers(csrf_token),
+    )
+    assert archive_response.status_code == 200, archive_response.text
+    assert archive_response.json().get("status") == "arquivada", (
+        f"status deveria virar 'arquivada': {archive_response.json()}"
+    )
+
+
+def test_submission_admin_mutations_require_csrf(api_client):
+    """SEC-SUBMIT-03: promote/publish-next/reject/archive todos retornam 403 sem CSRF.
+
+    RED: rotas de curadoria nao existem ainda (Plans 16-03/16-04).
+    """
+    _login_operator(api_client)
+
+    promote = api_client.post("/yonkou/submissions/fake-id/promote")
+    assert promote.status_code == 403, (
+        f"promote sem CSRF deveria ser 403, recebeu {promote.status_code}: {promote.text}"
+    )
+
+    publish = api_client.post("/yonkou/releases/publish-next")
+    assert publish.status_code == 403, (
+        f"publish-next sem CSRF deveria ser 403, recebeu {publish.status_code}: {publish.text}"
+    )
+
+    reject = api_client.post("/yonkou/submissions/fake-id/reject")
+    assert reject.status_code == 403, (
+        f"reject sem CSRF deveria ser 403, recebeu {reject.status_code}: {reject.text}"
+    )
+
+    archive = api_client.post("/yonkou/submissions/fake-id/archive")
+    assert archive.status_code == 403, (
+        f"archive sem CSRF deveria ser 403, recebeu {archive.status_code}: {archive.text}"
+    )
+
+
+def test_submissions_cap_evicts_terminal_only(api_client):
+    """SUBMIT-09/D-02: cap de retencao evicta somente entradas terminais
+    (rejeitada/arquivada), nunca pendente/promovida (Pitfall 4).
+
+    RED: storage submissions:data/index e _enforce_submissions_cap nao existem
+    ainda (Plan 16-02).
+    """
+    import api.main as main_module
+
+    original_cap = main_module.settings.submissions_cap
+    object.__setattr__(main_module.settings, "submissions_cap", 2)
+    try:
+        csrf_token = _login_operator(api_client)
+
+        old_pendente = api_client.post("/submissions", json=_submission_payload(titulo="Antiga Pendente"))
+        assert old_pendente.status_code == 202, old_pendente.text
+
+        old_rejeitada_submit = api_client.post(
+            "/submissions", json=_submission_payload(titulo="Antiga Rejeitada")
+        )
+        assert old_rejeitada_submit.status_code == 202, old_rejeitada_submit.text
+        listing = api_client.get("/yonkou/submissions", headers=_csrf_headers(csrf_token))
+        to_reject = next(
+            (item for item in listing.json() if item.get("titulo") == "Antiga Rejeitada"), None
+        )
+        assert to_reject, f"submissao 'Antiga Rejeitada' nao encontrada: {listing.text}"
+        reject_response = api_client.post(
+            f"/yonkou/submissions/{to_reject['id']}/reject",
+            headers=_csrf_headers(csrf_token),
+        )
+        assert reject_response.status_code == 200, reject_response.text
+
+        # 3a submissao estoura o cap (=2) — deve evictar a rejeitada mais antiga,
+        # NUNCA a pendente (D-02/Pitfall 4).
+        newest = api_client.post("/submissions", json=_submission_payload(titulo="Nova Pendente"))
+        assert newest.status_code == 202, newest.text
+
+        final_listing = api_client.get("/yonkou/submissions", headers=_csrf_headers(csrf_token))
+        titles = [item.get("titulo") for item in final_listing.json()]
+        assert "Antiga Pendente" in titles, (
+            f"submissao pendente antiga NAO deveria ser evictada pelo cap: {titles}"
+        )
+        assert "Antiga Rejeitada" not in titles, (
+            f"submissao rejeitada antiga deveria ser evictada pelo cap: {titles}"
+        )
+    finally:
+        object.__setattr__(main_module.settings, "submissions_cap", original_cap)
