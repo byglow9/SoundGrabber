@@ -39,11 +39,21 @@ document.addEventListener('DOMContentLoaded', function () {
     teaser.hidden = page !== 'home' || !hasContent;
   }
 
+  function syncParticiparCallout(page) {
+    var callout = document.getElementById('nav-participar-callout');
+    if (!callout) return;
+    // Callout ("↑ agora mais fácil e rápido") só faz sentido chamando
+    // atenção pra aba a partir da Início — o nav é position:fixed, entao
+    // sem isso ele continuaria sobreposto ao conteúdo nas outras abas.
+    callout.hidden = page !== 'home';
+  }
+
   function sgNav(page) {
     var wrapper     = document.getElementById('wrapper');
     var pageContent = document.getElementById('page-content');
 
     syncTeaser(page);
+    syncParticiparCallout(page);
 
     if (page === 'home') {
       wrapper.hidden     = false;
