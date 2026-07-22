@@ -77,72 +77,92 @@ document.addEventListener('DOMContentLoaded', function () {
     sgNav(link.getAttribute('data-page'));
   });
 
-  var copyBtn = document.getElementById('copy-template-btn');
-  var status = document.getElementById('copy-template-status');
-  var participarTemplate = [
-    'Assunto: Som da Semana',
-    '',
-    'Nome do artista/grupo:',
-    'Link do artista/grupo:',
-    '',
-    'Nome do produtor/beatmaker:',
-    'Link do produtor/beatmaker:',
-    '',
-    'Titulo da faixa:',
-    'Genero musical:',
-    '',
-    'Link do YouTube:',
-    '',
-    'Descricao da faixa/projeto:',
-    '',
-    'Links adicionais:',
-    '1.',
-    '2.',
-    '3.',
-    '4.'
-  ].join('\n');
+  // Phase 16 (SUBMIT-10/D-10): formulario real "Participar do Som da Semana"
+  // que faz POST /submissions. Substitui o antigo fluxo de copiar o template
+  // de envio e mandar por email (removido nesta revisao).
+  var participarForm = document.getElementById('participar-form');
+  var participarStatus = document.getElementById('participar-status');
+  var participarSubmitBtn = document.getElementById('participar-submit-btn');
 
-  function setCopyStatus(text) {
-    if (!status) return;
-    status.textContent = text;
-    if (text) {
-      window.setTimeout(function () {
-        status.textContent = '';
-      }, 1800);
-    }
+  function setParticiparStatus(text, isError) {
+    if (!participarStatus) return;
+    participarStatus.textContent = text;
+    participarStatus.className = isError ? 'error' : 'success';
   }
 
-  function fallbackCopy(text) {
-    var temp = document.createElement('textarea');
-    temp.value = text;
-    temp.setAttribute('readonly', 'readonly');
-    temp.style.position = 'fixed';
-    temp.style.left = '-9999px';
-    document.body.appendChild(temp);
-    temp.focus();
-    temp.select();
-    var copied = false;
-    try {
-      copied = document.execCommand('copy');
-    } catch (err) {
-      copied = false;
-    }
-    document.body.removeChild(temp);
-    return copied;
+  function fieldValue(form, name) {
+    var el = form.elements[name];
+    return el ? String(el.value || '').trim() : '';
   }
 
-  if (copyBtn) {
-    copyBtn.addEventListener('click', function () {
-      var text = participarTemplate;
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(text).then(function () {
-          setCopyStatus('copiado');
-        }).catch(function () {
-          setCopyStatus(fallbackCopy(text) ? 'copiado' : 'erro');
-        });
-        return;
+  function collectParticiparLinks(form) {
+    var links = [];
+    for (var i = 1; i <= 4; i++) {
+      var label = fieldValue(form, 'link_label_' + i);
+      var url = fieldValue(form, 'link_url_' + i);
+      if (label && url) {
+        links.push({ label: label, url: url });
       }
-      setCopyStatus(fallbackCopy(text) ? 'copiado' : 'erro');
+    }
+    return links;
+  }
+
+  function buildParticiparPayload(form) {
+    var produtores = [];
+    var produtorNome = fieldValue(form, 'produtor_nome');
+    if (produtorNome) {
+      produtores.push({ nome: produtorNome, url: fieldValue(form, 'produtor_url') });
+    }
+
+    return {
+      artistas: [{ nome: fieldValue(form, 'artista_nome'), url: fieldValue(form, 'artista_url') }],
+      produtores: produtores,
+      titulo: fieldValue(form, 'titulo'),
+      genero: fieldValue(form, 'genero'),
+      descricao: fieldValue(form, 'descricao'),
+      youtube_url: fieldValue(form, 'youtube_url'),
+      links: collectParticiparLinks(form),
+      contato: {
+        instagram: fieldValue(form, 'instagram'),
+        telefone: fieldValue(form, 'telefone'),
+        email: fieldValue(form, 'email')
+      },
+      // honeypot decoy (SEC-SUBMIT-02) — repassado como veio, sem trim/validacao
+      website: form.elements.website ? form.elements.website.value : ''
+    };
+  }
+
+  if (participarForm) {
+    participarForm.addEventListener('submit', function (e) {
+      e.preventDefault();
+
+      var payload = buildParticiparPayload(participarForm);
+      if (participarSubmitBtn) participarSubmitBtn.disabled = true;
+      setParticiparStatus('Enviando...', false);
+
+      fetch('/submissions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      }).then(function (response) {
+        if (response.status === 202) {
+          setParticiparStatus('Recebemos sua indicação! A curadoria vai avaliar em breve.', false);
+          participarForm.reset();
+          return null;
+        }
+        return response.json().catch(function () {
+          return {};
+        }).then(function (data) {
+          var message = data && typeof data.error === 'string'
+            ? data.error
+            : 'Não foi possível enviar. Verifique os campos e tente novamente.';
+          setParticiparStatus(message, true);
+        });
+      }).catch(function () {
+        setParticiparStatus('Erro de conexão. Tente novamente em instantes.', true);
+      }).then(function () {
+        if (participarSubmitBtn) participarSubmitBtn.disabled = false;
+      });
     });
   }
 });

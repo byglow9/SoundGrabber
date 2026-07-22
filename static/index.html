@@ -259,8 +259,9 @@
           <h1>Política de Privacidade</h1>
 
           <h2>1. O que coletamos</h2>
-          <p>O SoundGrabber não coleta cadastro, login ou qualquer dado pessoal identificável. Não armazenamos nome, e-mail, CPF ou informações de pagamento.</p>
+          <p>O SoundGrabber não coleta cadastro, login ou qualquer dado pessoal identificável para usar a ferramenta de download/análise. Não armazenamos nome, e-mail, CPF ou informações de pagamento nesse fluxo principal.</p>
           <p>Os únicos dados registrados são logs técnicos de acesso (endereço IP, horário, URL requisitada) mantidos por exigência legal e para fins de segurança operacional.</p>
+          <p>A exceção é o formulário "Participar do Som da Semana", que coleta dados de contato opcionais para viabilizar a curadoria — veja a seção 5 abaixo.</p>
 
           <h2>2. Google Analytics</h2>
           <p>Este site utiliza o Google Analytics 4 para medir o volume de acessos e entender como os visitantes utilizam a ferramenta. O Google Analytics coleta informações de forma anônima por meio de cookies, incluindo páginas visitadas, tempo de sessão e origem do tráfego. Nenhum dado pessoal identificável é enviado ao Google por meio dessa integração.</p>
@@ -272,37 +273,121 @@
           <h2>4. Dados de terceiros</h2>
           <p>O SoundGrabber não somos afiliados ao YouTube nem ao Google. Links e conteúdo acessados por meio desta ferramenta são de responsabilidade do usuário. Consulte os Termos de Serviço do YouTube em <a href="https://www.youtube.com/t/terms" target="_blank" rel="noopener">youtube.com/t/terms</a>.</p>
 
-          <h2>5. Contato</h2>
-          <p>Dúvidas ou solicitações relacionadas a esta política podem ser enviadas para <a href="mailto:contato@soundgrabber.com.br">contato@soundgrabber.com.br</a>.</p>
-          <p style="font-size:10px;color:#804400;margin-top:20px">Última atualização: maio de 2026</p>
+          <h2>5. Dados do formulário "Participar do Som da Semana"</h2>
+          <p>Ao enviar uma indicação pelo formulário de Participação, você pode informar dados de contato opcionais: Instagram, telefone e/ou email. É necessário preencher pelo menos um desses campos para que o envio seja concluído.</p>
+          <p>Esses dados de contato são usados exclusivamente para a curadoria falar com você sobre a sua indicação. Eles são visíveis apenas para a equipe operadora no painel administrativo — nunca são exibidos publicamente no site — e ficam armazenados enquanto a indicação permanecer na fila de moderação, sujeita ao limite de retenção do sistema.</p>
+
+          <h2>6. Contato</h2>
+          <p>Dúvidas ou solicitações relacionadas a esta política podem ser enviadas para <a href="mailto:contato&#64;soundgrabber.com.br">contato&#64;soundgrabber.com.br</a>.</p>
+          <p style="font-size:10px;color:#804400;margin-top:20px">Última atualização: julho de 2026</p>
         </td>
       </tr>
       <tr id="section-contato" class="page-section">
         <td class="about-section">
           <h2>Contato</h2>
-          <p>Dúvidas ou solicitações de privacidade: <a href="mailto:contato@soundgrabber.com.br" class="contact-link">contato@soundgrabber.com.br</a></p>
+          <p>Dúvidas ou solicitações de privacidade: <a href="mailto:contato&#64;soundgrabber.com.br" class="contact-link">contato&#64;soundgrabber.com.br</a></p>
           <p style="font-size:10px;color:#804400">Última atualização: maio de 2026</p>
         </td>
       </tr>
       <tr id="section-participar" class="page-section">
         <td class="about-section">
           <h1>Participe do Som da Semana</h1>
-          <p>Toda semana o SoundGrabber destaca uma faixa um artista underground brasileiro. Se você produz ou representa alguém que merece visibilidade, manda pra gente.</p>
-          <h2>O que enviar</h2>
-          <p>Nome do artista ou grupo + link do perfil <br>
-          Nome do produtor / beatmaker + link do perfil <br>
-          Título da faixa<br>
-          Gênero musical<br>
-          Link do YouTube  (obrigatório para o player funcionar) <br>
-          Breve descrição: 2 a 3 frases sobre o projeto ou a faixa</p>
-          <h2>Links adicionais</h2>
-          <p>Você pode incluir até 4 links extras para divulgar o que quiser junto ao destaque. Pode ser qualquer coisa: SoundCloud, Spotify, Instagram, loja de merch, link de pré-save, site do artista,|o que fizer mais sentido para o projeto.</p>
-	          <h2>Como enviar</h2>
-	          <p>Mande tudo por e-mail para <a href="mailto:contato@soundgrabber.com.br" class="contact-link">contato@soundgrabber.com.br</a> com o assunto <strong>Som da Semana</strong>.</p>
-	          <h2>Template para copiar</h2>
-	          <p><button type="button" id="copy-template-btn">Copiar template de envio</button>
-	          <span id="copy-template-status" aria-live="polite"></span></p>
-	          <p>Avaliamos todos os envios. Priorizamos as faixas que chegarem com mais informações preenchidas. Não garantimos publicação, mas respondemos a todos.</p>
+          <p>Toda semana o SoundGrabber destaca uma faixa de um artista underground brasileiro. Preencha o formulário abaixo para enviar sua indicação — sem email, sem template pra copiar.</p>
+
+          <form id="participar-form">
+          <table width="100%" cellpadding="4" cellspacing="0" border="0">
+            <tr><td colspan="2"><h2>Sobre a faixa</h2></td></tr>
+            <tr>
+              <td width="38%">Nome do artista/grupo *</td>
+              <td><input type="text" name="artista_nome" maxlength="100" required autocomplete="off"></td>
+            </tr>
+            <tr>
+              <td>Link do artista/grupo</td>
+              <td><input type="url" name="artista_url" maxlength="200" placeholder="https://..." autocomplete="off"></td>
+            </tr>
+            <tr>
+              <td>Nome do produtor/beatmaker</td>
+              <td><input type="text" name="produtor_nome" maxlength="100" autocomplete="off"></td>
+            </tr>
+            <tr>
+              <td>Link do produtor/beatmaker</td>
+              <td><input type="url" name="produtor_url" maxlength="200" placeholder="https://..." autocomplete="off"></td>
+            </tr>
+            <tr>
+              <td>Título da faixa *</td>
+              <td><input type="text" name="titulo" maxlength="150" required autocomplete="off"></td>
+            </tr>
+            <tr>
+              <td>Gênero musical *</td>
+              <td><input type="text" name="genero" maxlength="150" required autocomplete="off"></td>
+            </tr>
+            <tr>
+              <td>Link do YouTube *</td>
+              <td><input type="url" name="youtube_url" maxlength="500" required placeholder="https://www.youtube.com/watch?v=..." autocomplete="off"></td>
+            </tr>
+            <tr>
+              <td valign="top">Descrição (2-3 frases) *</td>
+              <td><textarea name="descricao" maxlength="350" rows="3" required></textarea></td>
+            </tr>
+
+            <tr><td colspan="2"><h2>Links adicionais (opcional, até 4)</h2></td></tr>
+            <tr>
+              <td>Link 1 — rótulo / URL</td>
+              <td><input type="text" name="link_label_1" maxlength="30" placeholder="rótulo" autocomplete="off"> <input type="url" name="link_url_1" maxlength="220" placeholder="https://..." autocomplete="off"></td>
+            </tr>
+            <tr>
+              <td>Link 2 — rótulo / URL</td>
+              <td><input type="text" name="link_label_2" maxlength="30" placeholder="rótulo" autocomplete="off"> <input type="url" name="link_url_2" maxlength="220" placeholder="https://..." autocomplete="off"></td>
+            </tr>
+            <tr>
+              <td>Link 3 — rótulo / URL</td>
+              <td><input type="text" name="link_label_3" maxlength="30" placeholder="rótulo" autocomplete="off"> <input type="url" name="link_url_3" maxlength="220" placeholder="https://..." autocomplete="off"></td>
+            </tr>
+            <tr>
+              <td>Link 4 — rótulo / URL</td>
+              <td><input type="text" name="link_label_4" maxlength="30" placeholder="rótulo" autocomplete="off"> <input type="url" name="link_url_4" maxlength="220" placeholder="https://..." autocomplete="off"></td>
+            </tr>
+
+            <tr>
+              <td colspan="2">
+                <h2>Dados de quem está enviando</h2>
+                <p>Preencha ao menos um contato. Usado apenas para a curadoria falar com você sobre sua indicação — nunca exibido publicamente. Veja nossa <a href="/sobre#privacidade" data-page="privacidade">Política de Privacidade</a>.</p>
+              </td>
+            </tr>
+            <tr>
+              <td>Instagram</td>
+              <td><input type="text" name="instagram" maxlength="150" placeholder="@seuperfil" autocomplete="off"></td>
+            </tr>
+            <tr>
+              <td>Telefone</td>
+              <td><input type="text" name="telefone" maxlength="150" placeholder="(00) 00000-0000" autocomplete="off"></td>
+            </tr>
+            <tr>
+              <td>Email</td>
+              <td><input type="email" name="email" maxlength="150" autocomplete="off"></td>
+            </tr>
+
+            <!-- Honeypot decoy (SEC-SUBMIT-02/Pitfall 3): off-canvas via position:absolute,
+                 nao display:none isolado; invisivel a humanos e leitores de tela, visivel a bots ingenuos. -->
+            <tr>
+              <td colspan="2">
+                <div style="position:absolute;left:-9999px" aria-hidden="true">
+                  <label for="website-field">Website (nao preencher)</label>
+                  <input type="text" id="website-field" name="website" tabindex="-1" autocomplete="off">
+                </div>
+              </td>
+            </tr>
+
+            <tr>
+              <td colspan="2">
+                <button type="submit" id="participar-submit-btn">Enviar indicação</button>
+                <div id="participar-status" aria-live="polite"></div>
+              </td>
+            </tr>
+          </table>
+          </form>
+
+          <p>Avaliamos todos os envios. Priorizamos as faixas que chegarem com mais informações preenchidas. Não garantimos publicação, mas respondemos a todos.</p>
 	        </td>
 	      </tr>
     </table>
