@@ -44,6 +44,15 @@ UPDATES_HISTORY_MAX = 50
 UPDATE_CATEGORIES = {"audio", "analise", "sistema", "em_breve"}
 ADMIN_COOKIE_NAME = "sg_admin"
 ADMIN_SESSION_MAX_AGE = 60 * 60 * 24 * 7
+# Phase 16 (SUBMIT-09/D-02): submissoes persistem em Hash (dado completo por id)
+# + Sorted Set (ordenacao por created_at_epoch) — diferente do featured:history
+# (List append-only), pois submissoes sao mutaveis e status-tracked.
+SUBMISSIONS_DATA_KEY = "submissions:data"
+SUBMISSIONS_INDEX_KEY = "submissions:index"
+SUBMISSION_TERMINAL_STATUSES = {"rejeitada", "arquivada"}
+# Phase 16 (SUBMIT-06/D-06): release promovido, aguardando publicacao explicita
+# via /yonkou/releases/publish-next (Plan 16-04) — nao toca featured:current.
+FEATURED_NEXT_KEY = "featured:next"
 
 # Module-level Redis client — connection pool reused across requests.
 _redis = redis_lib.from_url(settings.redis_url, decode_responses=True)
@@ -666,6 +675,52 @@ def _save_featured(payload: dict) -> None:
     _write_featured_fallback(payload)
 
 
+def _featured_next_fallback_path() -> Path:
+    return Path(_os.environ.get("FEATURED_NEXT_PATH", settings.featured_next_path))
+
+
+def _read_featured_next_fallback() -> dict | None:
+    path = _featured_next_fallback_path()
+    if not path.exists():
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        logger.exception("featured next fallback read failed")
+        return None
+    return data if isinstance(data, dict) and data else None
+
+
+def _write_featured_next_fallback(payload: dict) -> None:
+    _write_json_private(_featured_next_fallback_path(), payload)
+
+
+def _load_featured_next() -> dict | None:
+    """Phase 16 (SUBMIT-06/D-06): release promovido, aguardando publish-next (Plan 16-04)."""
+    try:
+        raw = _redis.get(FEATURED_NEXT_KEY)
+    except (redis_lib.exceptions.ConnectionError, redis_lib.exceptions.TimeoutError):
+        return _read_featured_next_fallback()
+    if not raw:
+        return None
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        logger.exception("featured next redis payload is invalid JSON")
+        return None
+    return data if isinstance(data, dict) and data else None
+
+
+def _save_featured_next(payload: dict) -> None:
+    raw = json.dumps(payload, ensure_ascii=False)
+    try:
+        _redis.set(FEATURED_NEXT_KEY, raw)
+    except (redis_lib.exceptions.ConnectionError, redis_lib.exceptions.TimeoutError):
+        _write_featured_next_fallback(payload)
+        return
+    _write_featured_next_fallback(payload)
+
+
 def _admin_serializer() -> URLSafeTimedSerializer:
     secret = settings.admin_session_secret
     if not secret:
@@ -740,6 +795,139 @@ def _system_update_document(request_body: SystemUpdateRequest) -> dict:
         "bullets": request_body.bullets,
         "data_publicacao": date.today().isoformat(),
     }
+
+
+# Phase 16 (SUBMIT-02/03/09/D-02): submissoes publicas de "Participar do Som da
+# Semana" — Hash (submissions:data, id -> JSON) + Sorted Set (submissions:index,
+# id -> created_at_epoch) para ordenacao, com fallback JSON dict-keyed. Ao
+# contrario de featured:history (List append-only), submissoes sao MUTAVEIS
+# (edicao admin, transicoes de status) — por isso Hash+ZSet, nao List.
+def _submission_document(request_body: SubmissionRequest) -> dict:
+    return {
+        "id": str(uuid.uuid4()),
+        "created_at_epoch": time.time(),
+        "data_recebida": date.today().isoformat(),
+        "status": "pendente",
+        "artistas": [a.model_dump() for a in request_body.artistas],
+        "produtores": [p.model_dump() for p in request_body.produtores],
+        "titulo": request_body.titulo,
+        "genero": request_body.genero,
+        "descricao": request_body.descricao,
+        "youtube_url": request_body.youtube_url,
+        "links": [link.model_dump() for link in request_body.links],
+        "contato": request_body.contato.model_dump(),
+    }
+
+
+def _submissions_fallback_path() -> Path:
+    return Path(_os.environ.get("SUBMISSIONS_FALLBACK_PATH", settings.submissions_fallback_path))
+
+
+def _read_submissions_fallback() -> dict[str, dict]:
+    path = _submissions_fallback_path()
+    if not path.exists():
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        logger.exception("submissions fallback read failed")
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _write_submissions_fallback(entries: dict[str, dict]) -> None:
+    _write_json_private(_submissions_fallback_path(), entries)
+
+
+def _load_submissions() -> list[dict]:
+    """Retorna todas as submissoes, mais recentes primeiro (por created_at_epoch)."""
+    try:
+        ids = _redis.zrevrange(SUBMISSIONS_INDEX_KEY, 0, -1)
+        raw_map = _redis.hgetall(SUBMISSIONS_DATA_KEY)
+    except (redis_lib.exceptions.ConnectionError, redis_lib.exceptions.TimeoutError):
+        fallback = _read_submissions_fallback()
+        return sorted(
+            fallback.values(), key=lambda d: d.get("created_at_epoch", 0), reverse=True
+        )
+    docs = []
+    for submission_id in ids:
+        raw = raw_map.get(submission_id)
+        if not raw:
+            continue
+        try:
+            docs.append(json.loads(raw))
+        except json.JSONDecodeError:
+            logger.exception("submission redis payload is invalid JSON: %s", submission_id)
+    return docs
+
+
+def _get_submission(submission_id: str) -> dict | None:
+    try:
+        raw = _redis.hget(SUBMISSIONS_DATA_KEY, submission_id)
+    except (redis_lib.exceptions.ConnectionError, redis_lib.exceptions.TimeoutError):
+        return _read_submissions_fallback().get(submission_id)
+    if not raw:
+        return None
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        logger.exception("submission redis payload is invalid JSON: %s", submission_id)
+        return None
+
+
+def _delete_submission(submission_id: str) -> None:
+    try:
+        _redis.hdel(SUBMISSIONS_DATA_KEY, submission_id)
+        _redis.zrem(SUBMISSIONS_INDEX_KEY, submission_id)
+    except (redis_lib.exceptions.ConnectionError, redis_lib.exceptions.TimeoutError):
+        pass
+    fallback = _read_submissions_fallback()
+    if fallback.pop(submission_id, None) is not None:
+        _write_submissions_fallback(fallback)
+
+
+def _enforce_submissions_cap() -> None:
+    """D-02/Pitfall 4: evicta somente entradas terminais (rejeitada/arquivada)
+    quando o total excede settings.submissions_cap. Pendente/Promovida NUNCA
+    sao evictadas — se o excedente for causado apenas por entradas nao-terminais,
+    o cap simplesmente eh ultrapassado (soft-overflow)."""
+    docs = _load_submissions()  # mais recente primeiro
+    overflow = len(docs) - settings.submissions_cap
+    if overflow <= 0:
+        return
+    # entradas terminais, da mais antiga para a mais nova
+    terminal_oldest_first = [
+        doc for doc in reversed(docs) if doc.get("status") in SUBMISSION_TERMINAL_STATUSES
+    ]
+    for doc in terminal_oldest_first[:overflow]:
+        _delete_submission(doc["id"])
+
+
+def _save_submission(doc: dict) -> None:
+    raw = json.dumps(doc, ensure_ascii=False)
+    try:
+        _redis.hset(SUBMISSIONS_DATA_KEY, doc["id"], raw)
+        _redis.zadd(SUBMISSIONS_INDEX_KEY, {doc["id"]: doc["created_at_epoch"]})
+    except (redis_lib.exceptions.ConnectionError, redis_lib.exceptions.TimeoutError):
+        pass
+    _enforce_submissions_cap()
+    fallback = _read_submissions_fallback()
+    fallback[doc["id"]] = doc
+    _write_submissions_fallback(fallback)
+
+
+def _update_submission(doc: dict) -> None:
+    """Edicao em-lugar ou transicao de status. Nao altera o score no ZSet
+    (created_at_epoch original — ordenacao por data de recebimento e preservada)."""
+    raw = json.dumps(doc, ensure_ascii=False)
+    try:
+        _redis.hset(SUBMISSIONS_DATA_KEY, doc["id"], raw)
+    except (redis_lib.exceptions.ConnectionError, redis_lib.exceptions.TimeoutError):
+        pass
+    fallback = _read_submissions_fallback()
+    fallback[doc["id"]] = doc
+    _write_submissions_fallback(fallback)
+    _enforce_submissions_cap()
 
 
 _KNOWN_LINK_LABELS = ["Youtube", "Soundcloud", "Spotify", "Instagram"]
