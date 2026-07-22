@@ -1934,6 +1934,51 @@ def archive_submission(submission_id: str, request: Request, response: Response)
     return _transition_submission_status(submission_id, "arquivada")
 
 
+# Phase 16 (SUBMIT-06/SUBMIT-07/D-06/D-07): two-step promote -> publish flow.
+# "Promover" DERIVA um FeaturedReleaseRequest-shaped doc a partir da submissao
+# (fonte) e o estagia em featured:next, SEM tocar featured:current — a
+# publicacao e uma acao explicita separada (/yonkou/releases/publish-next).
+def _promote_submission(submission: dict) -> dict:
+    """Deriva o payload featured a partir da submissao e o valida via
+    FeaturedReleaseRequest (caps da submissao sao subconjunto dos caps de
+    Featured, entao sempre valida). Re-derivacao e idempotente: chamar de novo
+    sobre a mesma submissao re-deriva featured:next a partir dos campos atuais
+    (Open Question #1 do 16-RESEARCH.md, resolvido como decisao de nivel de
+    tarefa neste plano)."""
+    request_body = FeaturedReleaseRequest(
+        artistas=submission["artistas"],
+        produtores=submission["produtores"],
+        titulo=submission["titulo"],
+        genero=submission["genero"],
+        descricao=submission["descricao"],
+        links=submission["links"],
+    )
+    doc = _featured_document(request_body)
+    doc["source_submission_id"] = submission["id"]
+    return doc
+
+
+@app.post(
+    "/yonkou/submissions/{submission_id}/promote",
+    dependencies=[Depends(_admin_csrf_dependency)],
+)
+@limiter.limit("20/minute")
+def promote_submission(submission_id: str, request: Request, response: Response) -> dict:
+    """SUBMIT-06/D-06/D-07: estagia um release derivado em featured:next e marca
+    a submissao 'promovida'. NAO publica — featured:current permanece intocado
+    ate um /publish-next explicito. IDOR defense (T-16-06): submission_id
+    validado ANTES de qualquer lookup no Redis."""
+    if not JOB_ID_PATTERN.match(submission_id):
+        raise HTTPException(status_code=404, detail="Submission not found")
+    submission = _get_submission(submission_id)
+    if not submission:
+        raise HTTPException(status_code=404, detail="Submission not found")
+    staged = _promote_submission(submission)
+    _save_featured_next(staged)
+    _update_submission({**submission, "status": "promovida"})
+    return staged
+
+
 @app.post("/yonkou/updates", dependencies=[Depends(_admin_csrf_dependency)])
 @limiter.limit("10/minute")
 def post_system_update(
