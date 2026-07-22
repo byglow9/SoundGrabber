@@ -1903,6 +1903,37 @@ def patch_submission(
     return updated
 
 
+def _transition_submission_status(submission_id: str, new_status: str) -> dict:
+    """SUBMIT-08/D-05: transicao de status (rejeitada/arquivada). IDOR defense
+    (T-16-06): submission_id validado ANTES de qualquer lookup no Redis."""
+    if not JOB_ID_PATTERN.match(submission_id):
+        raise HTTPException(status_code=404, detail="Submission not found")
+    existing = _get_submission(submission_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="Submission not found")
+    updated = {**existing, "status": new_status}
+    _update_submission(updated)
+    return updated
+
+
+@app.post(
+    "/yonkou/submissions/{submission_id}/reject",
+    dependencies=[Depends(_admin_csrf_dependency)],
+)
+@limiter.limit("20/minute")
+def reject_submission(submission_id: str, request: Request, response: Response) -> dict:
+    return _transition_submission_status(submission_id, "rejeitada")
+
+
+@app.post(
+    "/yonkou/submissions/{submission_id}/archive",
+    dependencies=[Depends(_admin_csrf_dependency)],
+)
+@limiter.limit("20/minute")
+def archive_submission(submission_id: str, request: Request, response: Response) -> dict:
+    return _transition_submission_status(submission_id, "arquivada")
+
+
 @app.post("/yonkou/updates", dependencies=[Depends(_admin_csrf_dependency)])
 @limiter.limit("10/minute")
 def post_system_update(
