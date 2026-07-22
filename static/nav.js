@@ -95,33 +95,153 @@ document.addEventListener('DOMContentLoaded', function () {
     return el ? String(el.value || '').trim() : '';
   }
 
-  function collectParticiparLinks(form) {
+  // ── Artistas (1-3, min 1) e Produtores (0-1) — mesmo padrao visual/JS do
+  // editor Yonkou (createArtistaRow/wireArtistasList em yonkou.js), com os
+  // caps de SubmissionRequest (api/main.py: artistas<=3, produtores<=1).
+  var ARTISTAS_MAX = 3;
+  var PRODUTORES_MAX = 1;
+
+  function createParticiparPersonRow(kind, nome, url) {
+    var row = document.createElement('div');
+    row.className = kind + '-row';
+
+    var nomeInput = document.createElement('input');
+    nomeInput.className = 'participar-input ' + kind + '-nome';
+    nomeInput.placeholder = 'nome';
+    nomeInput.value = nome || '';
+
+    var urlInput = document.createElement('input');
+    urlInput.className = 'participar-input ' + kind + '-url';
+    urlInput.placeholder = 'link (opcional)';
+    urlInput.value = url || '';
+
+    var removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'artista-remove';
+    removeBtn.textContent = '×';
+    removeBtn.addEventListener('click', function () {
+      row.remove();
+      syncParticiparAddButton(kind);
+    });
+
+    row.appendChild(nomeInput);
+    row.appendChild(urlInput);
+    row.appendChild(removeBtn);
+    return row;
+  }
+
+  function syncParticiparAddButton(kind) {
+    var list = document.getElementById('participar-' + kind + 's-list');
+    var addBtn = document.getElementById('participar-add-' + kind + '-btn');
+    if (!list || !addBtn) return;
+    var count = list.querySelectorAll('.' + kind + '-row').length;
+    var max = kind === 'artista' ? ARTISTAS_MAX : PRODUTORES_MAX;
+    addBtn.style.display = count >= max ? 'none' : '';
+  }
+
+  function initParticiparPersonList(kind, minRows) {
+    var list = document.getElementById('participar-' + kind + 's-list');
+    var addBtn = document.getElementById('participar-add-' + kind + '-btn');
+    if (!list || !addBtn) return;
+    list.innerHTML = '';
+    for (var i = 0; i < minRows; i++) {
+      list.appendChild(createParticiparPersonRow(kind, '', ''));
+    }
+    addBtn.addEventListener('click', function () {
+      list.appendChild(createParticiparPersonRow(kind, '', ''));
+      syncParticiparAddButton(kind);
+    });
+    syncParticiparAddButton(kind);
+  }
+
+  function resetParticiparPersonList(kind, minRows) {
+    var list = document.getElementById('participar-' + kind + 's-list');
+    if (!list) return;
+    list.innerHTML = '';
+    for (var i = 0; i < minRows; i++) {
+      list.appendChild(createParticiparPersonRow(kind, '', ''));
+    }
+    syncParticiparAddButton(kind);
+  }
+
+  function participarPeopleFromList(kind) {
+    var people = [];
+    document.querySelectorAll('#participar-' + kind + 's-list .' + kind + '-row').forEach(function (row) {
+      var nomeInput = row.querySelector('.' + kind + '-nome');
+      var urlInput = row.querySelector('.' + kind + '-url');
+      if (!nomeInput) return;
+      var nome = nomeInput.value.trim();
+      var url = urlInput ? urlInput.value.trim() : '';
+      if (nome || url) people.push({ nome: nome, url: url });
+    });
+    return people;
+  }
+
+  initParticiparPersonList('artista', 1);
+  initParticiparPersonList('produtor', 0);
+
+  // ── Links adicionais: select de plataforma conhecida + campo customizado
+  // para "Outros" — mesmo padrao de featured-link-label-N em yonkou.js.
+  function getParticiparLinkLabel(i) {
+    var select = document.getElementById('participar-link-label-' + i);
+    if (!select) return '';
+    if (select.value === 'Outros') {
+      var custom = document.getElementById('participar-link-label-custom-' + i);
+      return custom ? custom.value.trim() : '';
+    }
+    return select.value;
+  }
+
+  function wireParticiparLinkSelects() {
+    for (var i = 1; i <= 4; i++) {
+      (function (idx) {
+        var select = document.getElementById('participar-link-label-' + idx);
+        var custom = document.getElementById('participar-link-label-custom-' + idx);
+        if (!select || !custom) return;
+        select.addEventListener('change', function () {
+          custom.style.display = select.value === 'Outros' ? '' : 'none';
+          if (select.value !== 'Outros') custom.value = '';
+        });
+      })(i);
+    }
+  }
+
+  function resetParticiparLinkSelects() {
+    for (var i = 1; i <= 4; i++) {
+      var select = document.getElementById('participar-link-label-' + i);
+      var custom = document.getElementById('participar-link-label-custom-' + i);
+      var urlInput = document.getElementById('participar-link-url-' + i);
+      if (select) select.value = '';
+      if (custom) { custom.style.display = 'none'; custom.value = ''; }
+      if (urlInput) urlInput.value = '';
+    }
+  }
+
+  wireParticiparLinkSelects();
+
+  function collectParticiparLinks() {
     var links = [];
     for (var i = 1; i <= 4; i++) {
-      var label = fieldValue(form, 'link_label_' + i);
-      var url = fieldValue(form, 'link_url_' + i);
-      if (label && url) {
-        links.push({ label: label, url: url });
+      var url = document.getElementById('participar-link-url-' + i);
+      if (!url) continue;
+      var label = getParticiparLinkLabel(i);
+      var urlValue = url.value.trim();
+      if (label && urlValue) {
+        links.push({ label: label, url: urlValue });
       }
     }
     return links;
   }
 
   function buildParticiparPayload(form) {
-    var produtores = [];
-    var produtorNome = fieldValue(form, 'produtor_nome');
-    if (produtorNome) {
-      produtores.push({ nome: produtorNome, url: fieldValue(form, 'produtor_url') });
-    }
-
     return {
-      artistas: [{ nome: fieldValue(form, 'artista_nome'), url: fieldValue(form, 'artista_url') }],
-      produtores: produtores,
+      artistas: participarPeopleFromList('artista'),
+      produtores: participarPeopleFromList('produtor'),
       titulo: fieldValue(form, 'titulo'),
       genero: fieldValue(form, 'genero'),
       descricao: fieldValue(form, 'descricao'),
       youtube_url: fieldValue(form, 'youtube_url'),
-      links: collectParticiparLinks(form),
+      links: collectParticiparLinks(),
       contato: {
         instagram: fieldValue(form, 'instagram'),
         telefone: fieldValue(form, 'telefone'),
@@ -148,6 +268,9 @@ document.addEventListener('DOMContentLoaded', function () {
         if (response.status === 202) {
           setParticiparStatus('Recebemos sua indicação! A curadoria vai avaliar em breve.', false);
           participarForm.reset();
+          resetParticiparPersonList('artista', 1);
+          resetParticiparPersonList('produtor', 0);
+          resetParticiparLinkSelects();
           return null;
         }
         return response.json().catch(function () {

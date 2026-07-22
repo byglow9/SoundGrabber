@@ -293,25 +293,24 @@
         <td class="about-section">
           <h1>Participe do Som da Semana</h1>
           <p>Toda semana o SoundGrabber destaca uma faixa de um artista underground brasileiro. Preencha o formulário abaixo para enviar sua indicação — sem email, sem template pra copiar.</p>
+          <p>Preencha ao menos um contato ao final do formulário. Usado apenas para a curadoria falar com você sobre sua indicação — nunca exibido publicamente. Veja nossa <a href="/sobre#privacidade" data-page="privacidade">Política de Privacidade</a>.</p>
 
           <form id="participar-form" class="participar-form">
           <table class="participar-form-table" width="100%" cellpadding="0" cellspacing="0">
             <tr><td colspan="2"><h2>Sobre a faixa</h2></td></tr>
             <tr>
-              <td class="participar-label-cell">Nome do artista/grupo *</td>
-              <td><input type="text" name="artista_nome" maxlength="100" required autocomplete="off" class="participar-input"></td>
+              <td class="participar-label-cell" style="vertical-align:top;padding-top:10px">Artistas *</td>
+              <td>
+                <div id="participar-artistas-list"></div>
+                <button type="button" id="participar-add-artista-btn" class="participar-secondary">+ artista</button>
+              </td>
             </tr>
             <tr>
-              <td class="participar-label-cell">Link do artista/grupo</td>
-              <td><input type="url" name="artista_url" maxlength="200" placeholder="https://..." autocomplete="off" class="participar-input"></td>
-            </tr>
-            <tr>
-              <td class="participar-label-cell">Nome do produtor/beatmaker</td>
-              <td><input type="text" name="produtor_nome" maxlength="100" autocomplete="off" class="participar-input"></td>
-            </tr>
-            <tr>
-              <td class="participar-label-cell">Link do produtor/beatmaker</td>
-              <td><input type="url" name="produtor_url" maxlength="200" placeholder="https://..." autocomplete="off" class="participar-input"></td>
+              <td class="participar-label-cell" style="vertical-align:top;padding-top:10px">Produtores</td>
+              <td>
+                <div id="participar-produtores-list"></div>
+                <button type="button" id="participar-add-produtor-btn" class="participar-secondary">+ produtor</button>
+              </td>
             </tr>
             <tr>
               <td class="participar-label-cell">Título da faixa *</td>
@@ -335,20 +334,64 @@
           <legend>Links adicionais (opcional, até 4)</legend>
           <table id="participar-links-table" width="100%" cellpadding="0" cellspacing="0">
             <tr>
-              <td class="participar-links-cell participar-links-label"><label>Rótulo 1<input type="text" name="link_label_1" maxlength="30" placeholder="rótulo" autocomplete="off" class="participar-input"></label></td>
-              <td class="participar-links-cell participar-links-url"><label>URL 1<input type="url" name="link_url_1" maxlength="220" placeholder="https://..." autocomplete="off" class="participar-input"></label></td>
+              <td class="participar-links-cell participar-links-label">
+                <label for="participar-link-label-1">Label 1</label>
+                <select id="participar-link-label-1" class="participar-input participar-select">
+                  <option value=""></option>
+                  <option value="Youtube">Youtube</option>
+                  <option value="Soundcloud">Soundcloud</option>
+                  <option value="Spotify">Spotify</option>
+                  <option value="Instagram">Instagram</option>
+                  <option value="Outros">Outros</option>
+                </select>
+                <input id="participar-link-label-custom-1" class="participar-input participar-label-custom" style="display:none" placeholder="nome">
+              </td>
+              <td class="participar-links-cell participar-links-url"><label>URL 1 <input type="url" id="participar-link-url-1" maxlength="220" placeholder="https://..." autocomplete="off" class="participar-input"></label></td>
             </tr>
             <tr>
-              <td class="participar-links-cell participar-links-label"><label>Rótulo 2<input type="text" name="link_label_2" maxlength="30" placeholder="rótulo" autocomplete="off" class="participar-input"></label></td>
-              <td class="participar-links-cell participar-links-url"><label>URL 2<input type="url" name="link_url_2" maxlength="220" placeholder="https://..." autocomplete="off" class="participar-input"></label></td>
+              <td class="participar-links-cell participar-links-label">
+                <label for="participar-link-label-2">Label 2</label>
+                <select id="participar-link-label-2" class="participar-input participar-select">
+                  <option value=""></option>
+                  <option value="Youtube">Youtube</option>
+                  <option value="Soundcloud">Soundcloud</option>
+                  <option value="Spotify">Spotify</option>
+                  <option value="Instagram">Instagram</option>
+                  <option value="Outros">Outros</option>
+                </select>
+                <input id="participar-link-label-custom-2" class="participar-input participar-label-custom" style="display:none" placeholder="nome">
+              </td>
+              <td class="participar-links-cell participar-links-url"><label>URL 2 <input type="url" id="participar-link-url-2" maxlength="220" placeholder="https://..." autocomplete="off" class="participar-input"></label></td>
             </tr>
             <tr>
-              <td class="participar-links-cell participar-links-label"><label>Rótulo 3<input type="text" name="link_label_3" maxlength="30" placeholder="rótulo" autocomplete="off" class="participar-input"></label></td>
-              <td class="participar-links-cell participar-links-url"><label>URL 3<input type="url" name="link_url_3" maxlength="220" placeholder="https://..." autocomplete="off" class="participar-input"></label></td>
+              <td class="participar-links-cell participar-links-label">
+                <label for="participar-link-label-3">Label 3</label>
+                <select id="participar-link-label-3" class="participar-input participar-select">
+                  <option value=""></option>
+                  <option value="Youtube">Youtube</option>
+                  <option value="Soundcloud">Soundcloud</option>
+                  <option value="Spotify">Spotify</option>
+                  <option value="Instagram">Instagram</option>
+                  <option value="Outros">Outros</option>
+                </select>
+                <input id="participar-link-label-custom-3" class="participar-input participar-label-custom" style="display:none" placeholder="nome">
+              </td>
+              <td class="participar-links-cell participar-links-url"><label>URL 3 <input type="url" id="participar-link-url-3" maxlength="220" placeholder="https://..." autocomplete="off" class="participar-input"></label></td>
             </tr>
             <tr>
-              <td class="participar-links-cell participar-links-label"><label>Rótulo 4<input type="text" name="link_label_4" maxlength="30" placeholder="rótulo" autocomplete="off" class="participar-input"></label></td>
-              <td class="participar-links-cell participar-links-url"><label>URL 4<input type="url" name="link_url_4" maxlength="220" placeholder="https://..." autocomplete="off" class="participar-input"></label></td>
+              <td class="participar-links-cell participar-links-label">
+                <label for="participar-link-label-4">Label 4</label>
+                <select id="participar-link-label-4" class="participar-input participar-select">
+                  <option value=""></option>
+                  <option value="Youtube">Youtube</option>
+                  <option value="Soundcloud">Soundcloud</option>
+                  <option value="Spotify">Spotify</option>
+                  <option value="Instagram">Instagram</option>
+                  <option value="Outros">Outros</option>
+                </select>
+                <input id="participar-link-label-custom-4" class="participar-input participar-label-custom" style="display:none" placeholder="nome">
+              </td>
+              <td class="participar-links-cell participar-links-url"><label>URL 4 <input type="url" id="participar-link-url-4" maxlength="220" placeholder="https://..." autocomplete="off" class="participar-input"></label></td>
             </tr>
           </table>
           </fieldset>
@@ -357,7 +400,6 @@
             <tr>
               <td colspan="2">
                 <h2>Dados de quem está enviando</h2>
-                <p>Preencha ao menos um contato. Usado apenas para a curadoria falar com você sobre sua indicação — nunca exibido publicamente. Veja nossa <a href="/sobre#privacidade" data-page="privacidade">Política de Privacidade</a>.</p>
               </td>
             </tr>
             <tr>

@@ -1263,7 +1263,8 @@ body.yonkou-login-page {
   width: 76%;
 }
 
-.yonkou-select {
+.yonkou-select,
+.participar-select {
   display: block;
   width: 100%;
   padding: 4px 6px;
@@ -1275,12 +1276,14 @@ body.yonkou-login-page {
   cursor: pointer;
 }
 
-.yonkou-label-custom {
+.yonkou-label-custom,
+.participar-label-custom {
   margin-top: 4px;
   font-size: 12px;
 }
 
-.yonkou-secondary {
+.yonkou-secondary,
+.participar-secondary {
   display: inline-block;
   margin-top: 6px;
   padding: 4px 10px;
@@ -1292,7 +1295,8 @@ body.yonkou-login-page {
   cursor: pointer;
 }
 
-.yonkou-secondary:hover {
+.yonkou-secondary:hover,
+.participar-secondary:hover {
   background-color: #ff8800;
   color: #000000;
 }
