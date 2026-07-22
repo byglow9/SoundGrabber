@@ -121,11 +121,13 @@ document.addEventListener('DOMContentLoaded', function () {
     var nomeInput = document.createElement('input');
     nomeInput.className = 'participar-input ' + kind + '-nome';
     nomeInput.placeholder = 'nome';
+    nomeInput.maxLength = 300;
     nomeInput.value = nome || '';
 
     var urlInput = document.createElement('input');
     urlInput.className = 'participar-input ' + kind + '-url';
     urlInput.placeholder = 'link (opcional)';
+    urlInput.maxLength = 200;
     urlInput.value = url || '';
 
     var removeBtn = document.createElement('button');

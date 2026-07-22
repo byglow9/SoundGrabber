@@ -513,3 +513,28 @@ def test_yonkou_has_submissions_tab(api_client):
     assert 'id="tab-submissoes-btn"' in panel.text, (
         'painel operador deve conter o botao da aba Submissões (id="tab-submissoes-btn")'
     )
+
+
+def test_yonkou_submissoes_tab_never_uses_innerhtml():
+    """SEC-SUBMIT-05/Pitfall 5 (T-16-02): converte a "inspecao manual" listada
+    no SECURITY-CHECKLIST.md (SEC-SUBMIT-05) em teste automatizado — a aba
+    Submissões e o preview do card "Som da Semana" renderizam conteudo
+    controlado pelo submissor (titulo, artistas, descricao) na sessao
+    autenticada do operador. Se algum trecho dessa renderizacao usasse
+    innerHTML/interpolacao de string em vez de textContent/createElement,
+    um payload de submissao viraria Stored XSS contra o cookie admin + CSRF
+    token do operador — o alvo de maior valor do sistema.
+    """
+    yonkou_js = (PROJECT_ROOT / "static" / "yonkou.js").read_text(encoding="utf-8")
+    featured_card_js = (PROJECT_ROOT / "static" / "featured-card.js").read_text(encoding="utf-8")
+
+    assert "innerHTML" not in yonkou_js, (
+        "static/yonkou.js nao deve usar innerHTML — conteudo de submissao "
+        "deve ser renderizado com textContent/createElement (Pitfall 5)"
+    )
+    assert "innerHTML" not in featured_card_js, (
+        "static/featured-card.js (preview + sidebar publica) nao deve usar innerHTML"
+    )
+    assert "textContent" in yonkou_js
+    assert "createSubmissaoRow" in yonkou_js
+    assert "openPreviewModal" in yonkou_js

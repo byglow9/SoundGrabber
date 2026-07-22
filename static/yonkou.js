@@ -162,7 +162,7 @@ function initArtistasList() {
   var list = document.getElementById('artistas-list');
   if (!list) return;
   var artistas = initialFeaturedList('artistas');
-  list.innerHTML = '';
+  while (list.firstChild) list.removeChild(list.firstChild);
   if (artistas.length === 0) {
     list.appendChild(createArtistaRow('', ''));
   } else {
@@ -175,7 +175,7 @@ function initArtistasList() {
 function clearArtistasList() {
   var list = document.getElementById('artistas-list');
   if (!list) return;
-  list.innerHTML = '';
+  while (list.firstChild) list.removeChild(list.firstChild);
   list.appendChild(createArtistaRow('', ''));
 }
 
@@ -236,7 +236,7 @@ function initProdutoresList() {
   var list = document.getElementById('produtores-list');
   if (!list) return;
   var produtores = initialFeaturedList('produtores');
-  list.innerHTML = '';
+  while (list.firstChild) list.removeChild(list.firstChild);
   if (produtores.length === 0) {
     list.appendChild(createProdutorRow('', ''));
   } else {
@@ -249,7 +249,7 @@ function initProdutoresList() {
 function clearProdutoresList() {
   var list = document.getElementById('produtores-list');
   if (!list) return;
-  list.innerHTML = '';
+  while (list.firstChild) list.removeChild(list.firstChild);
   list.appendChild(createProdutorRow('', ''));
 }
 
@@ -495,9 +495,10 @@ function wireSystemUpdateEditor() {
 
 // ── Submissões (Phase 16 / SUBMIT-04/05/06/07/08) ───────────────────────────────
 // XSS-safe rendering: every submission-derived value is placed via textContent
-// or the .value property — NEVER innerHTML/string interpolation (Pitfall 5,
-// T-16-02) because a submitter-controlled field renders in the operator's
-// authenticated browser session (admin cookie + CSRF token).
+// or the .value property — never via raw-markup assignment or string
+// interpolation (Pitfall 5, T-16-02) because a submitter-controlled field
+// renders in the operator's authenticated browser session (admin cookie +
+// CSRF token).
 
 var _currentSubmissaoId = null;
 

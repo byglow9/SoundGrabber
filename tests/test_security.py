@@ -199,15 +199,15 @@ def test_health_redis_down(api_client):
 # ---------------------------------------------------------------------------
 
 def test_body_size_limit(api_client):
-    """SEC-TEST-01: POST /jobs com body > 5KB retorna 413 com error_type='request_error'.
+    """SEC-TEST-01: POST /jobs com body > 8KB retorna 413 com error_type='request_error'.
 
     Middleware _limit_body_size em api/main.py JA implementa este controle.
-    Limite subiu de 4096 para 5120 bytes (SEC-SUBMIT-04, produtores 1->3) —
-    payload de teste ajustado para ficar acima do novo teto. Stub documenta
-    o contrato.
+    Limite subiu de 5120 para 8192 bytes (SEC-SUBMIT-04, caps de campo
+    150/350 -> 300/700) — payload de teste ajustado para ficar acima do
+    novo teto. Stub documenta o contrato.
     """
-    large = "A" * 6000
-    r = api_client.post("/jobs", content=large, headers={"Content-Length": "6000"})
+    large = "A" * 9000
+    r = api_client.post("/jobs", content=large, headers={"Content-Length": "9000"})
     assert r.status_code == 413, f"esperado 413, obtido {r.status_code}: {r.text}"
     body = r.json()
     assert body.get("error_type") == "request_error", f"error_type errado: {body}"
@@ -918,9 +918,9 @@ def test_updates_redis_fallback(api_client, tmp_path, monkeypatch):
 def _submission_payload(contato=None, website="", links=None, produtores=None, titulo="Faixa de Teste"):
     """Payload valido de submissao publica.
 
-    Respeita os caps apertados travados no Plan 16-02 (artistas<=3, produtores<=3,
-    links<=4, titulo/genero<=150, descricao<=350, contato<=150 cada campo) para que
-    o payload continue valido quando os modelos existirem.
+    Respeita os caps apertados travados no Plan 16-02/16-06 (artistas<=3,
+    produtores<=3, links<=4, titulo/genero/nome/contato<=300, descricao<=700)
+    para que o payload continue valido quando os modelos existirem.
     """
     return {
         "artistas": [{"nome": "MC Underground", "url": ""}],
@@ -991,7 +991,7 @@ def test_post_submission_requires_one_contact(api_client):
 def test_submission_produtores_cap(api_client):
     """SUBMIT-02/D-14: produtores aceita ate 3 (paridade com artistas na UI publica),
     rejeitando o 4o com 422. Cap subiu de 1->3; corpo com 3 produtores continua
-    abaixo de _MAX_BODY_BYTES=5120 (remedido — ver SubmissionRequest docstring).
+    abaixo de _MAX_BODY_BYTES=8192 (remedido — ver SubmissionRequest docstring).
     """
     produtor = {"nome": "Beatmaker", "url": ""}
 
@@ -1006,6 +1006,146 @@ def test_submission_produtores_cap(api_client):
     assert response_over.status_code == 422, (
         f"4 produtores deveria ser rejeitado (422), recebeu {response_over.status_code}: {response_over.text}"
     )
+
+
+def test_submission_titulo_length_cap(api_client):
+    """SEC-SUBMIT-08: titulo aceita ate 300 caracteres e rejeita 301.
+    Calibragem pedida explicitamente pelo usuario (afrouxado de 150 para
+    300) — o payload de cardinalidade maxima nos novos caps foi remedido
+    para 6676 bytes, dentro de _MAX_BODY_BYTES=8192. Cada cap tem seu
+    proprio teste (em vez de agrupados) para nao estourar o rate limit de
+    3/hora de POST /submissions (SEC-SUBMIT-01) dentro de um unico teste.
+    """
+    r = api_client.post("/submissions", json=_submission_payload(titulo="T" * 300))
+    assert r.status_code == 202, f"titulo com 300 chars deveria ser aceito: {r.text}"
+
+    r = api_client.post("/submissions", json=_submission_payload(titulo="T" * 301))
+    assert r.status_code == 422, f"titulo com 301 chars deveria ser rejeitado: {r.text}"
+
+
+def test_submission_descricao_length_cap(api_client):
+    """SEC-SUBMIT-08: descricao aceita ate 700 caracteres e rejeita 701
+    (afrouxado de 350 para 700, pedido explicito do usuario)."""
+    r = api_client.post("/submissions", json=dict(_submission_payload(), descricao="D" * 700))
+    assert r.status_code == 202, f"descricao com 700 chars deveria ser aceita: {r.text}"
+
+    r = api_client.post("/submissions", json=dict(_submission_payload(), descricao="D" * 701))
+    assert r.status_code == 422, f"descricao com 701 chars deveria ser rejeitada: {r.text}"
+
+
+def test_submission_artista_nome_length_cap(api_client):
+    """SEC-SUBMIT-08: nome de artista aceita ate 300 caracteres e rejeita 301
+    (afrouxado de 100 para 300, pedido explicito do usuario)."""
+    payload_ok = _submission_payload()
+    payload_ok["artistas"] = [{"nome": "A" * 300, "url": ""}]
+    r = api_client.post("/submissions", json=payload_ok)
+    assert r.status_code == 202, f"nome de artista com 300 chars deveria ser aceito: {r.text}"
+
+    payload_over = _submission_payload()
+    payload_over["artistas"] = [{"nome": "A" * 301, "url": ""}]
+    r = api_client.post("/submissions", json=payload_over)
+    assert r.status_code == 422, f"nome de artista com 301 chars deveria ser rejeitado: {r.text}"
+
+
+def test_submission_contato_length_cap(api_client):
+    """SEC-SUBMIT-08: campos de contato aceitam ate 300 caracteres e
+    rejeitam 301 (afrouxado de 150 para 300, pedido explicito do usuario)."""
+    r = api_client.post(
+        "/submissions",
+        json=_submission_payload(contato={"instagram": "I" * 300, "telefone": "", "email": ""}),
+    )
+    assert r.status_code == 202, f"contato com 300 chars deveria ser aceito: {r.text}"
+
+    r = api_client.post(
+        "/submissions",
+        json=_submission_payload(contato={"instagram": "I" * 301, "telefone": "", "email": ""}),
+    )
+    assert r.status_code == 422, f"contato com 301 chars deveria ser rejeitado: {r.text}"
+
+
+def test_submission_rejects_control_characters(api_client):
+    """SEC-SUBMIT-08: campos de texto rejeitam bytes de controle ASCII (NUL,
+    ESC etc.) — evita poluicao de logs/terminais caso o conteudo bruto seja
+    um dia exibido fora do textContent-only do navegador."""
+    payload = _submission_payload(titulo="Faixa\x00maliciosa")
+    r = api_client.post("/submissions", json=payload)
+    assert r.status_code == 422, (
+        f"titulo com NUL byte deveria ser rejeitado (422): {r.status_code} {r.text}"
+    )
+
+    payload = _submission_payload(titulo="Faixa\x1bmaliciosa")
+    r = api_client.post("/submissions", json=payload)
+    assert r.status_code == 422, (
+        f"titulo com ESC byte deveria ser rejeitado (422): {r.status_code} {r.text}"
+    )
+
+
+def test_submission_descricao_allows_newline_but_not_other_control_chars(api_client):
+    """SEC-SUBMIT-08: descricao (textarea multi-linha) aceita \\n mas ainda
+    rejeita outros bytes de controle."""
+    payload = dict(_submission_payload(), descricao="Linha 1\nLinha 2\nLinha 3 com quebras normais.")
+    r = api_client.post("/submissions", json=payload)
+    assert r.status_code == 202, f"descricao com \\n deveria ser aceita: {r.text}"
+
+    payload = dict(_submission_payload(), descricao="Descricao\x00com NUL byte no meio.")
+    r = api_client.post("/submissions", json=payload)
+    assert r.status_code == 422, f"descricao com NUL byte deveria ser rejeitada: {r.text}"
+
+
+def test_submission_rejects_bidi_override_spoofing(api_client):
+    """SEC-SUBMIT-08: bloqueia overrides Unicode de bidi/zero-width (RLO/LRO,
+    isolates, BOM) em titulo/nome — sem isso, um submissor poderia usar
+    U+202E (RIGHT-TO-LEFT OVERRIDE) para inverter visualmente o texto que o
+    operador le no painel antes de aprovar (ataque estilo "Trojan Source",
+    CVE-2021-42574 generalizado para conteudo de usuario, nao so codigo-fonte)."""
+    rlo = "‮"
+    zero_width = "​"
+
+    payload = _submission_payload(titulo=f"Faixa normal{rlo}oredaugif ossI")
+    r = api_client.post("/submissions", json=payload)
+    assert r.status_code == 422, f"titulo com RLO (U+202E) deveria ser rejeitado: {r.text}"
+
+    payload = _submission_payload()
+    payload["artistas"] = [{"nome": f"MC{zero_width}Fake", "url": ""}]
+    r = api_client.post("/submissions", json=payload)
+    assert r.status_code == 422, f"nome com zero-width space deveria ser rejeitado: {r.text}"
+
+
+def test_submission_youtube_url_rejects_non_alphanumeric_video_id(api_client):
+    """SEC-SUBMIT-08: video_id extraido de youtube_url deve casar
+    [A-Za-z0-9_-]{11} — sem isso, um valor percent-encoded como
+    '%3Csvg%2Fonload' (11 chars apos decode) passaria so pelo check de
+    tamanho antigo e seria gravado como parte de youtube_url. O regex do
+    frontend (sgExtractYoutubeId) ja bloqueia isso na hora de montar o
+    iframe, mas a validacao de origem fecha a lacuna tambem no backend."""
+    payload = _submission_payload()
+    payload["youtube_url"] = "https://www.youtube.com/watch?v=%3Csvg%2Fonload"
+    r = api_client.post("/submissions", json=payload)
+    assert r.status_code == 422, (
+        f"video_id com caracteres nao-alfanumericos deveria ser rejeitado: {r.status_code} {r.text}"
+    )
+
+
+def test_submission_accepts_and_safely_stores_xss_and_sqli_style_payloads(api_client):
+    """SEC-SUBMIT-08: nao ha banco SQL neste projeto (storage e Redis Hash +
+    Sorted Set via json.dumps/json.loads — ver Plan 16-02), entao SQL
+    injection classica nao se aplica: strings como payloads de SQLi sao
+    apenas texto e devem ser aceitas/armazenadas/devolvidas identicas, sem
+    nenhuma interpretacao especial. Para XSS: o valor deve sobreviver ao
+    round-trip exatamente como enviado (prova de que nada o escapa/mutila no
+    backend) — a defesa real contra execucao e client-side (yonkou.js/
+    featured-card.js usam textContent, nunca innerHTML; ver
+    test_yonkou_submissoes_tab_never_uses_innerhtml em test_frontend.py)."""
+    sqli_payload = "Titulo'; DROP TABLE submissions; --"
+    xss_payload = '<script>alert(document.cookie)</script>'
+
+    payload = _submission_payload(titulo=sqli_payload)
+    r = api_client.post("/submissions", json=payload)
+    assert r.status_code == 202, f"payload estilo SQLi deveria ser aceito como texto comum: {r.text}"
+
+    payload = dict(_submission_payload(), descricao=f"Descricao com XSS: {xss_payload}")
+    r = api_client.post("/submissions", json=payload)
+    assert r.status_code == 202, f"payload com <script> deveria ser aceito como texto comum: {r.text}"
 
 
 def test_submission_rate_limit(api_client):

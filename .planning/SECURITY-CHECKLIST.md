@@ -77,9 +77,9 @@
 
 ## 3. HTTP Hardening (controles ja implementados em api/main.py)
 
-### SEC-TEST-01 — Body size limit 5KB
+### SEC-TEST-01 — Body size limit 8KB
 
-- [ ] Middleware `_limit_body_size` retorna 413 para `Content-Length > 5120` (subiu de 4096 — SEC-SUBMIT-04, produtores 1->3)
+- [ ] Middleware `_limit_body_size` retorna 413 para `Content-Length > 8192` (subiu de 5120 — SEC-SUBMIT-04, caps de campo 150/350 -> 300/700)
 - **Verificacao:** `pytest tests/test_security.py::test_body_size_limit -x`
 - **Threat:** Memory exhaustion via body injection
 
@@ -267,10 +267,10 @@
 - **Verificacao:** `pytest tests/test_security.py::test_get_submissions_requires_admin tests/test_security.py::test_patch_submission_requires_csrf tests/test_security.py::test_reject_and_archive_submission tests/test_security.py::test_submission_admin_mutations_require_csrf -x`
 - **Threat:** Spoofing / Tampering — sessao roubada/CSRF poderia forjar edicao, transicao de status ou publicacao
 
-### SEC-SUBMIT-04 — Body size 5KB cobre o payload de cardinalidade maxima
+### SEC-SUBMIT-04 — Body size 8KB cobre o payload de cardinalidade maxima
 
 - [x] Nenhuma excecao de path adicionada em `_limit_body_size` para `/submissions` ou `/yonkou/submissions/{id}`
-- [x] Produtores subiu de <=1 para <=3 (paridade com artistas na UI publica); caps do Plan 16-02 mantem o payload publico maximo em 4376 bytes e o payload admin de edicao em 4361 bytes — ambos abaixo de `_MAX_BODY_BYTES=5120` (subiu de 4096 junto, remedido e documentado em STATE.md Key Decisions)
+- [x] Produtores subiu de <=1 para <=3 (paridade com artistas na UI publica); titulo/genero/nome/contato subiram de <=150 para <=300 e descricao de <=350 para <=700 (calibragem pedida explicitamente pelo usuario) — caps do Plan 16-02/16-06 mantem o payload publico maximo em 6676 bytes e o payload admin de edicao em 6661 bytes — ambos abaixo de `_MAX_BODY_BYTES=8192` (subiu de 5120 junto, remedido e documentado em STATE.md Key Decisions)
 - **Verificacao:** `pytest tests/test_security.py::test_submission_body_size_enforced -x`
 - **Threat:** Denial of Service — corpo oversized nao deve chegar ao parsing Pydantic (413 antes de 500)
 
@@ -278,8 +278,8 @@
 
 - [x] `POST /submissions` retorna um dict fixo (`{"status": "recebido"}`), sem instagram/telefone/email/contato
 - [x] Nao existe endpoint publico de leitura de submissoes (somente `/yonkou/submissions`, autenticado)
-- [x] `static/yonkou.js` (Plan 16-06): a aba "Submissões" do painel operador renderiza TODOS os campos de uma submissao (titulo, artista, genero, descricao, contato) via `document.createElement`/`textContent`/`.value` — nunca `innerHTML` ou interpolacao de string — porque o conteudo e controlado pelo submissor e renderiza na sessao autenticada do operador (cookie admin + CSRF token), um alvo de alto valor (Pitfall 5 / T-16-02)
-- **Verificacao:** `pytest tests/test_security.py::test_submission_response_excludes_contact -x`; `pytest tests/test_frontend.py -k yonkou_has_submissions_tab -x`; inspecao manual: `grep -n "innerHTML" static/yonkou.js` no bloco "Submissões" deve retornar vazio
+- [x] `static/yonkou.js` (Plan 16-06): a aba "Submissões" do painel operador renderiza TODOS os campos de uma submissao (titulo, artista, genero, descricao, contato) via `document.createElement`/`textContent`/`.value` — nunca `innerHTML` ou interpolacao de string — porque o conteudo e controlado pelo submissor e renderiza na sessao autenticada do operador (cookie admin + CSRF token), um alvo de alto valor (Pitfall 5 / T-16-02). `static/featured-card.js` (preview do card + sidebar publica) segue a mesma regra
+- **Verificacao:** `pytest tests/test_security.py::test_submission_response_excludes_contact -x`; `pytest tests/test_frontend.py -k yonkou_has_submissions_tab -x`; `pytest tests/test_frontend.py::test_yonkou_submissoes_tab_never_uses_innerhtml -x` (converteu a antiga inspecao manual `grep -n "innerHTML"` em teste automatizado)
 - **Threat:** Information Disclosure (dado de contato) + Tampering/Elevation of Privilege (Stored XSS via campo de submissao renderizado na aba admin) — dado pessoal (D-08) nunca deve vazar na resposta publica; conteudo de submissao nunca deve executar script na sessao do operador
 
 ### SEC-SUBMIT-06 — IDOR defense em `{submission_id}`
@@ -299,6 +299,31 @@
 - **Verificacao:** `pytest tests/test_security.py::test_promote_submission_writes_featured_next tests/test_security.py::test_publish_next_moves_current_to_history -x`
 - **Threat:** Tampering — publicacao imediata sem o passo de revisao intermediario violaria D-06
 
+### SEC-SUBMIT-08 — Auditoria completa: caps de campo, unicode/controle, SQLi/XSS/SSRF/ReDoS/injecao Redis
+
+Auditoria final pedida explicitamente pelo usuario apos calibrar os caps de
+campo para 300/700 (ver STATE.md Key Decisions). Pesquisa externa: FastAPI/
+Pydantic OWASP hardening, NoSQL/Redis injection, SSRF/unicode homograph/ReDoS
+(2026).
+
+- [x] **Caps de campo recalibrados e re-medidos:** titulo/genero/nome-artista/
+  contato subiram de <=150 para <=300; descricao de <=350 para <=700; URLs
+  (artista<=200, link<=220) e label de link (<=30) inalterados. Payload de
+  cardinalidade maxima remedido: 6676 bytes publico / 6661 bytes admin —
+  `_MAX_BODY_BYTES` subiu de 5120 para 8192 para preservar margem (~1516
+  bytes, ~23%)
+- [x] **Caracteres de controle ASCII bloqueados** (`_reject_control_and_bidi_chars`) em todo campo de texto livre — NUL/ESC/etc. rejeitados com 422; `\n`/`\r`/`\t` permitidos apenas em `descricao` (textarea multi-linha)
+- [x] **Overrides Unicode bidi/zero-width bloqueados** (U+200B-U+200F, U+202A-U+202E, U+2066-U+2069, U+FEFF) — evita spoofing visual estilo "Trojan Source" no texto que o operador le antes de aprovar/publicar
+- [x] **`youtube_url` valida o charset do video_id** (`^[A-Za-z0-9_-]{11}$`), nao so o tamanho — fecha a lacuna onde um valor percent-encoded (decodificado por `parse_qs`) com exatamente 11 chars poderia conter markup; defesa em profundidade complementar ao regex do frontend (`sgExtractYoutubeId`)
+- [x] **SQL injection: nao aplicavel.** Storage e Redis (Hash `submissions:data` + Sorted Set `submissions:index`) via `json.dumps`/`json.loads` — nao existe nenhuma query SQL neste projeto. Payloads estilo `'; DROP TABLE...` sao aceitos e tratados como texto comum (verificado em teste)
+- [x] **Redis/NoSQL injection: mitigado por design.** `submission_id` (unica entrada de usuario usada como chave Redis) e validado contra `JOB_ID_PATTERN` (`^[a-zA-Z0-9-]{1,64}$`) ANTES de qualquer lookup (SEC-SUBMIT-06); o client redis-py usa protocolo RESP estruturado (nao concatenacao de comando), entao valores de campo nao alcancam sintaxe de comando Redis. Nenhum uso de `EVAL`/Lua com input de usuario
+- [x] **SSRF: nao aplicavel.** Nenhuma chamada HTTP de saida (`requests`/`httpx`/`urlopen`) e feita a partir de URLs fornecidas em submissao — artista/produtor/link URLs sao so armazenados e renderizados como `<a href>` no navegador (nunca fetch server-side); `youtube_url` vira um `<iframe src>` client-side, tambem sem fetch server-side
+- [x] **ReDoS: nao aplicavel.** Nenhum regex usado em validacao de input de usuario tem quantificadores aninhados/alternancia sobreposta (`JOB_ID_PATTERN`, `_YOUTUBE_VIDEO_ID_PATTERN`, `_BIDI_UNICODE_PATTERN` sao todos classes de caracteres simples ou `^...{N}$` limitados)
+- [x] **Log injection: nao aplicavel aos campos de texto.** Unico log com dado de submissao (`_get_submission`) so inclui `submission_id`, ja validado por `JOB_ID_PATTERN` antes de chegar la — sem CRLF/bytes de controle possiveis
+- [x] **XSS: defesa em profundidade.** Payload malicioso (`<script>...</script>`) e aceito/armazenado como texto comum (nao ha por que rejeitar no backend — a defesa real e client-side); renderizacao via `textContent`/`createElement` em `yonkou.js` e `featured-card.js` (nunca `innerHTML`), verificado por teste automatizado (SEC-SUBMIT-05)
+- **Verificacao:** `pytest tests/test_security.py -k "control_char or bidi or length_cap or youtube_url_rejects or xss_and_sqli" -v`
+- **Threat:** Tampering (dados fora do formato esperado) / Spoofing (bidi override) / Information Disclosure (log injection) / DoS (ReDoS) — nenhum aplicavel alem do que ja mitigado; ver tambem Secao 9 para residuais aceitos (phishing via link legitimo)
+
 ---
 
 ## 9. Threats NAO mitigados nesta fase (deferidos)
@@ -309,6 +334,7 @@ Estes itens estao escopados para v1.2 ou versoes futuras:
 - **Private /tmp directory por job** — `/tmp/sg_{id}/` com `os.mkdir(mode=0o700)` (v2)
 - **Job cancellation endpoint** — DELETE /jobs/{id} com auth (v2)
 - **Stale `featured:next` publicado apos edicao tardia da submissao (T-16-02)** — aceito como comportamento documentado: o operador deve re-promover apos editar, antes de publicar (Plan 16-04, Open Question #1)
+- **Phishing via URL de artista/produtor/link legitima na sintaxe (http/https valido) mas apontando para conteudo malicioso** — inerente a qualquer feature de "adicionar link"; nao ha como validar a INTENCAO de uma URL sindicamente valida. Mitigacao existente: o operador revisa manualmente antes de promover/publicar (curadoria humana e o gate, nao codigo)
 
 ---
 

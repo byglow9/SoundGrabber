@@ -36,6 +36,7 @@ logger = logging.getLogger(__name__)
 
 YOUTUBE_HOSTS = {"youtube.com", "www.youtube.com", "m.youtube.com", "youtu.be"}
 JOB_ID_PATTERN = re.compile(r"^[a-zA-Z0-9-]{1,64}$")
+_YOUTUBE_VIDEO_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{11}$")
 FEATURED_KEY = "featured:current"
 FEATURED_HISTORY_KEY = "featured:history"
 FEATURED_HISTORY_MAX = 52
@@ -114,6 +115,32 @@ limiter = Limiter(
 )
 
 
+# SEC-SUBMIT-08: bloqueia caracteres de controle ASCII (exceto \n/\r/\t quando
+# allow_newline=True, para a textarea de descricao) e overrides Unicode de
+# bidi/zero-width em todo campo de texto livre da submissao publica.
+# Motivacao: um submissor poderia usar RLO/LRO (U+202E/U+202D etc.) para
+# inverter visualmente o texto que o operador le no painel antes de aprovar
+# (ataque estilo "Trojan Source"/spoofing visual, CVE-2021-42574), ou embutir
+# bytes de controle (NUL, ESC) que poluem terminais/logs caso o conteudo seja
+# um dia exibido fora do textContent-only do navegador. Pesquisado em conjunto
+# com XSS/SQLi/SSRF/ReDoS/injecao Redis — ver STATE.md Key Decisions para o
+# resumo completo da auditoria.
+_BIDI_UNICODE_PATTERN = re.compile(
+    "[\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]"
+)
+
+
+def _reject_control_and_bidi_chars(value: str, *, allow_newline: bool = False) -> str:
+    allowed_whitespace = ("\n", "\r", "\t") if allow_newline else ()
+    for ch in value:
+        code = ord(ch)
+        if (code < 0x20 or code == 0x7F) and ch not in allowed_whitespace:
+            raise ValueError("Field contains disallowed control characters")
+    if _BIDI_UNICODE_PATTERN.search(value):
+        raise ValueError("Field contains disallowed Unicode formatting characters")
+    return value
+
+
 def _normalize_youtube_url(v: str) -> str:
     """Valida e normaliza uma URL do YouTube para https://www.youtube.com/watch?v=ID.
 
@@ -139,7 +166,13 @@ def _normalize_youtube_url(v: str) -> str:
         # youtube.com/watch?v=VIDEO_ID[&list=...&outros]
         video_id = parse_qs(parsed.query).get("v", [None])[0]
 
-    if not video_id or len(video_id) != 11:
+    # SEC-SUBMIT-08: video_id vem de parse_qs/path, que ja decodifica
+    # percent-encoding — sem checar o charset, um valor como "%3Csvg%2Fonload"
+    # (11 chars apos decode) passaria so pelo check de tamanho e seria
+    # gravado como parte de youtube_url. O regex do frontend
+    # (sgExtractYoutubeId, [A-Za-z0-9_-]{11}) ja bloqueia isso na hora de
+    # montar o iframe, mas validar aqui tambem fecha a lacuna na origem.
+    if not video_id or not _YOUTUBE_VIDEO_ID_PATTERN.match(video_id):
         raise ValueError(
             "Não foi possível identificar o vídeo na URL. "
             "Use o link direto do vídeo (ex: youtube.com/watch?v=ID)."
@@ -255,13 +288,12 @@ class FeaturedReleaseRequest(BaseModel):
 
 # Phase 16 (SUBMIT-02/SEC-SUBMIT-04): modelos PUBLICOS da submissao "Participar do
 # Som da Semana". Distintos de FeaturedArtist/FeaturedLink (que mantem seus caps
-# admin 200/500) com caps MAIS APERTADOS (nome<=100/url<=200, label<=30/url<=220)
+# admin 200/500) com caps MAIS APERTADOS (nome<=300/url<=200, label<=30/url<=220)
 # para que o payload de cardinalidade maxima (3 artistas + 3 produtores + 4 links,
-# todos os campos no cap) fique medido em 4376 bytes — abaixo de _MAX_BODY_BYTES=5120
-# (Pitfall 2). Produtores subiu de 1->3 (paridade de UI com artistas, D-14) e
-# _MAX_BODY_BYTES subiu de 4096->5120 para acomodar — remedido e documentado
-# conforme Security Gate (ver STATE.md Key Decisions). NAO reutilizar
-# FeaturedArtist/FeaturedLink aqui.
+# todos os campos no cap) fique medido em 6676 bytes — abaixo de _MAX_BODY_BYTES=8192
+# (Pitfall 2). Todo campo de texto livre passa por _reject_control_and_bidi_chars
+# (SEC-SUBMIT-08) alem do cap de tamanho. NAO reutilizar FeaturedArtist/FeaturedLink
+# aqui.
 class SubmissionArtist(BaseModel):
     nome: str
     url: str = ""
@@ -272,9 +304,9 @@ class SubmissionArtist(BaseModel):
         value = value.strip()
         if not value:
             raise ValueError("Artist name is required")
-        if len(value) > 100:
-            raise ValueError("Artist name must be 100 characters or less")
-        return value
+        if len(value) > 300:
+            raise ValueError("Artist name must be 300 characters or less")
+        return _reject_control_and_bidi_chars(value)
 
     @field_validator("url")
     @classmethod
@@ -287,7 +319,7 @@ class SubmissionArtist(BaseModel):
             raise ValueError("Artist URL must use http or https")
         if len(value) > 200:
             raise ValueError("Artist URL must be 200 characters or less")
-        return value
+        return _reject_control_and_bidi_chars(value)
 
 
 class SubmissionLink(BaseModel):
@@ -302,7 +334,7 @@ class SubmissionLink(BaseModel):
             raise ValueError("Link label is required")
         if len(value) > 30:
             raise ValueError("Link label must be 30 characters or less")
-        return value
+        return _reject_control_and_bidi_chars(value)
 
     @field_validator("url")
     @classmethod
@@ -313,7 +345,7 @@ class SubmissionLink(BaseModel):
             raise ValueError("Link URL must use http or https")
         if len(value) > 220:
             raise ValueError("Link URL must be 220 characters or less")
-        return value
+        return _reject_control_and_bidi_chars(value)
 
 
 class SubmissionContact(BaseModel):
@@ -331,9 +363,9 @@ class SubmissionContact(BaseModel):
     @classmethod
     def contact_field_capped(cls, value: str) -> str:
         value = value.strip()
-        if len(value) > 150:
-            raise ValueError("Contact fields must be 150 characters or less")
-        return value
+        if len(value) > 300:
+            raise ValueError("Contact fields must be 300 characters or less")
+        return _reject_control_and_bidi_chars(value)
 
     @model_validator(mode="after")
     def at_least_one_contact(self) -> "SubmissionContact":
@@ -347,14 +379,16 @@ class SubmissionContact(BaseModel):
 class SubmissionRequest(BaseModel):
     """Payload publico de 'Participar do Som da Semana' (SUBMIT-02/03/09).
 
-    Caps de campo E de lista (artistas<=3, produtores<=3, links<=4) sao
-    deliberadamente mais apertados que FeaturedReleaseRequest (uso admin) —
-    a combinacao mantem o payload de cardinalidade MAXIMA (todo campo no cap,
-    todo slot de lista preenchido) medido em 4376 bytes, abaixo de
-    _MAX_BODY_BYTES=5120 com 744 bytes de margem (SEC-SUBMIT-04 / Pitfall 2).
-    Produtores subiu de 1->3 (paridade com artistas na UI publica, D-14);
-    _MAX_BODY_BYTES subiu de 4096->5120 junto para preservar a margem de
-    seguranca — decisao registrada em STATE.md Key Decisions.
+    Caps de campo (titulo/genero/nome/contato<=300, descricao<=700) E de lista
+    (artistas<=3, produtores<=3, links<=4) sao deliberadamente mais apertados
+    que FeaturedReleaseRequest (uso admin) — a combinacao mantem o payload de
+    cardinalidade MAXIMA (todo campo no cap, todo slot de lista preenchido)
+    medido em 6676 bytes, abaixo de _MAX_BODY_BYTES=8192 com ~1516 bytes de
+    margem (SEC-SUBMIT-04 / Pitfall 2). Todo campo de texto livre tambem passa
+    por _reject_control_and_bidi_chars (SEC-SUBMIT-08) — bloqueia caracteres
+    de controle ASCII e overrides Unicode bidi/zero-width (spoofing visual
+    estilo Trojan Source no painel do operador). Decisao de calibragem dos
+    caps registrada em STATE.md Key Decisions.
     NAO aumentar estes caps sem re-medir o payload de cardinalidade maxima.
     """
 
@@ -374,9 +408,9 @@ class SubmissionRequest(BaseModel):
         value = value.strip()
         if not value:
             raise ValueError("Field cannot be empty")
-        if len(value) > 150:
-            raise ValueError("Field must be 150 characters or less")
-        return value
+        if len(value) > 300:
+            raise ValueError("Field must be 300 characters or less")
+        return _reject_control_and_bidi_chars(value)
 
     @field_validator("descricao")
     @classmethod
@@ -384,9 +418,9 @@ class SubmissionRequest(BaseModel):
         value = value.strip()
         if not value:
             raise ValueError("Description cannot be empty")
-        if len(value) > 350:
-            raise ValueError("Description must be 350 characters or less")
-        return value
+        if len(value) > 700:
+            raise ValueError("Description must be 700 characters or less")
+        return _reject_control_and_bidi_chars(value, allow_newline=True)
 
     @field_validator("youtube_url")
     @classmethod
@@ -422,8 +456,8 @@ class SubmissionEditRequest(BaseModel):
 
     Mesmos campos e caps apertados de SubmissionRequest (Plan 16-02), MENOS o
     honeypot 'website' (decoy publico, sem sentido no fluxo admin). Sem o
-    'website', o corpo de cardinalidade MAXIMA fica em 4361 bytes (medido),
-    ainda abaixo de _MAX_BODY_BYTES=5120 — nenhuma excecao de path necessaria.
+    'website', o corpo de cardinalidade MAXIMA fica em 6661 bytes (medido),
+    ainda abaixo de _MAX_BODY_BYTES=8192 — nenhuma excecao de path necessaria.
     """
 
     artistas: list[SubmissionArtist]
@@ -441,9 +475,9 @@ class SubmissionEditRequest(BaseModel):
         value = value.strip()
         if not value:
             raise ValueError("Field cannot be empty")
-        if len(value) > 150:
-            raise ValueError("Field must be 150 characters or less")
-        return value
+        if len(value) > 300:
+            raise ValueError("Field must be 300 characters or less")
+        return _reject_control_and_bidi_chars(value)
 
     @field_validator("descricao")
     @classmethod
@@ -451,9 +485,9 @@ class SubmissionEditRequest(BaseModel):
         value = value.strip()
         if not value:
             raise ValueError("Description cannot be empty")
-        if len(value) > 350:
-            raise ValueError("Description must be 350 characters or less")
-        return value
+        if len(value) > 700:
+            raise ValueError("Description must be 700 characters or less")
+        return _reject_control_and_bidi_chars(value, allow_newline=True)
 
     @field_validator("youtube_url")
     @classmethod
@@ -1544,8 +1578,8 @@ app = FastAPI(
 
 app.state.limiter = limiter
 
-_MAX_BODY_BYTES = 5 * 1024  # 5 KB — SEC-SUBMIT-04: acomoda submissao com 3 produtores
-# (subiu de 4KB; ver SubmissionRequest docstring e STATE.md Key Decisions) e ainda
+_MAX_BODY_BYTES = 8 * 1024  # 8 KB — SEC-SUBMIT-04: acomoda os caps de campo 300/700
+# (subiu de 5KB; ver SubmissionRequest docstring e STATE.md Key Decisions) e ainda
 # excede em muito qualquer JobRequest (so uma URL) ou payload de edicao legitimo.
 _ANALYZE_MAX_BYTES = 50 * 1024 * 1024  # 50 MB — legitimate audio file upload (WAV ~5min, MP3 ~45min)
 _ANALYZE_MULTIPART_OVERHEAD_BYTES = 1024 * 1024
