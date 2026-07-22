@@ -49,6 +49,13 @@ class Settings:
     featured_history_path: str = field(default_factory=lambda: os.environ.get("FEATURED_HISTORY_PATH", ".data/featured-history.json"))
     system_updates_path: str = field(default_factory=lambda: os.environ.get("SYSTEM_UPDATES_PATH", ".data/system-updates.json"))
     trusted_proxy_ips: str = field(default_factory=lambda: os.environ.get("TRUSTED_PROXY_IPS", ""))
+    # Phase 16 (SUBMIT-01/SEC-SUBMIT-01, D-04): rate limit para POST /submissions publico
+    submission_rate_limit_per_hour: int = field(default_factory=lambda: _safe_int("SUBMISSION_RATE_LIMIT_PER_HOUR", 3))
+    # Phase 16 (SUBMIT-09, D-02): cap de retencao de submissoes (evictando so terminais)
+    submissions_cap: int = field(default_factory=lambda: _safe_int("SUBMISSIONS_CAP", 200))
+    submissions_fallback_path: str = field(default_factory=lambda: os.environ.get("SUBMISSIONS_FALLBACK_PATH", ".data/submissions.json"))
+    # Phase 16 (SUBMIT-06/D-06): featured:next fallback — release promovido, aguardando publish-next
+    featured_next_path: str = field(default_factory=lambda: os.environ.get("FEATURED_NEXT_PATH", ".data/featured-next.json"))
 
 
 settings = Settings()
