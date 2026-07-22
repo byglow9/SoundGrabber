@@ -199,13 +199,15 @@ def test_health_redis_down(api_client):
 # ---------------------------------------------------------------------------
 
 def test_body_size_limit(api_client):
-    """SEC-TEST-01: POST /jobs com body > 4KB retorna 413 com error_type='request_error'.
+    """SEC-TEST-01: POST /jobs com body > 5KB retorna 413 com error_type='request_error'.
 
     Middleware _limit_body_size em api/main.py JA implementa este controle.
-    Stub documenta o contrato.
+    Limite subiu de 4096 para 5120 bytes (SEC-SUBMIT-04, produtores 1->3) —
+    payload de teste ajustado para ficar acima do novo teto. Stub documenta
+    o contrato.
     """
-    large = "A" * 5000
-    r = api_client.post("/jobs", content=large, headers={"Content-Length": "5000"})
+    large = "A" * 6000
+    r = api_client.post("/jobs", content=large, headers={"Content-Length": "6000"})
     assert r.status_code == 413, f"esperado 413, obtido {r.status_code}: {r.text}"
     body = r.json()
     assert body.get("error_type") == "request_error", f"error_type errado: {body}"
@@ -916,7 +918,7 @@ def test_updates_redis_fallback(api_client, tmp_path, monkeypatch):
 def _submission_payload(contato=None, website="", links=None, produtores=None, titulo="Faixa de Teste"):
     """Payload valido de submissao publica.
 
-    Respeita os caps apertados travados no Plan 16-02 (artistas<=3, produtores<=1,
+    Respeita os caps apertados travados no Plan 16-02 (artistas<=3, produtores<=3,
     links<=4, titulo/genero<=150, descricao<=350, contato<=150 cada campo) para que
     o payload continue valido quando os modelos existirem.
     """
@@ -986,6 +988,26 @@ def test_post_submission_requires_one_contact(api_client):
     )
 
 
+def test_submission_produtores_cap(api_client):
+    """SUBMIT-02/D-14: produtores aceita ate 3 (paridade com artistas na UI publica),
+    rejeitando o 4o com 422. Cap subiu de 1->3; corpo com 3 produtores continua
+    abaixo de _MAX_BODY_BYTES=5120 (remedido — ver SubmissionRequest docstring).
+    """
+    produtor = {"nome": "Beatmaker", "url": ""}
+
+    payload_ok = _submission_payload(produtores=[produtor, produtor, produtor], titulo="Faixa OK 3 produtores")
+    response_ok = api_client.post("/submissions", json=payload_ok)
+    assert response_ok.status_code == 202, (
+        f"3 produtores deveria ser aceito (202), recebeu {response_ok.status_code}: {response_ok.text}"
+    )
+
+    payload_over = _submission_payload(produtores=[produtor, produtor, produtor, produtor], titulo="Faixa 4 produtores")
+    response_over = api_client.post("/submissions", json=payload_over)
+    assert response_over.status_code == 422, (
+        f"4 produtores deveria ser rejeitado (422), recebeu {response_over.status_code}: {response_over.text}"
+    )
+
+
 def test_submission_rate_limit(api_client):
     """SEC-SUBMIT-01/D-04: 4a submissao na mesma hora pelo mesmo IP retorna 429 com Retry-After.
 
@@ -1038,14 +1060,14 @@ def test_submission_honeypot_silently_dropped(api_client):
 
 
 def test_submission_body_size_enforced(api_client):
-    """SEC-SUBMIT-04: payload de submissao acima do limite global de 4KB retorna 413
+    """SEC-SUBMIT-04: payload de submissao acima do limite global de 5KB retorna 413
     (nunca 500) — protecao via middleware _limit_body_size ja existente + caps
-    apertados do Plan 16-02 mantendo o payload legitimo maximo bem abaixo de 4KB.
+    apertados do Plan 16-02 mantendo o payload legitimo maximo bem abaixo de 5KB.
 
     RED: rota /submissions nao existe ainda (Plan 16-03).
     """
     payload = _submission_payload()
-    payload["descricao"] = "A" * 6000  # forca o corpo bruto acima de 4KB
+    payload["descricao"] = "A" * 6000  # forca o corpo bruto acima de 5KB
     response = api_client.post("/submissions", json=payload)
     assert response.status_code in (413, 422), (
         f"payload de submissao oversized deveria ser 413 ou 422, nunca 500, "

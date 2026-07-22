@@ -256,9 +256,12 @@ class FeaturedReleaseRequest(BaseModel):
 # Phase 16 (SUBMIT-02/SEC-SUBMIT-04): modelos PUBLICOS da submissao "Participar do
 # Som da Semana". Distintos de FeaturedArtist/FeaturedLink (que mantem seus caps
 # admin 200/500) com caps MAIS APERTADOS (nome<=100/url<=200, label<=30/url<=220)
-# para que o payload de cardinalidade maxima (3 artistas + 1 produtor + 4 links,
-# todos os campos no cap) fique medido em 3726 bytes — abaixo de _MAX_BODY_BYTES=4096
-# (Pitfall 2). NAO reutilizar FeaturedArtist/FeaturedLink aqui.
+# para que o payload de cardinalidade maxima (3 artistas + 3 produtores + 4 links,
+# todos os campos no cap) fique medido em 4376 bytes — abaixo de _MAX_BODY_BYTES=5120
+# (Pitfall 2). Produtores subiu de 1->3 (paridade de UI com artistas, D-14) e
+# _MAX_BODY_BYTES subiu de 4096->5120 para acomodar — remedido e documentado
+# conforme Security Gate (ver STATE.md Key Decisions). NAO reutilizar
+# FeaturedArtist/FeaturedLink aqui.
 class SubmissionArtist(BaseModel):
     nome: str
     url: str = ""
@@ -344,11 +347,14 @@ class SubmissionContact(BaseModel):
 class SubmissionRequest(BaseModel):
     """Payload publico de 'Participar do Som da Semana' (SUBMIT-02/03/09).
 
-    Caps de campo E de lista (artistas<=3, produtores<=1, links<=4) sao
+    Caps de campo E de lista (artistas<=3, produtores<=3, links<=4) sao
     deliberadamente mais apertados que FeaturedReleaseRequest (uso admin) —
     a combinacao mantem o payload de cardinalidade MAXIMA (todo campo no cap,
-    todo slot de lista preenchido) medido em 3726 bytes, abaixo de
-    _MAX_BODY_BYTES=4096 com 370 bytes de margem (SEC-SUBMIT-04 / Pitfall 2).
+    todo slot de lista preenchido) medido em 4376 bytes, abaixo de
+    _MAX_BODY_BYTES=5120 com 744 bytes de margem (SEC-SUBMIT-04 / Pitfall 2).
+    Produtores subiu de 1->3 (paridade com artistas na UI publica, D-14);
+    _MAX_BODY_BYTES subiu de 4096->5120 junto para preservar a margem de
+    seguranca — decisao registrada em STATE.md Key Decisions.
     NAO aumentar estes caps sem re-medir o payload de cardinalidade maxima.
     """
 
@@ -398,9 +404,9 @@ class SubmissionRequest(BaseModel):
 
     @field_validator("produtores")
     @classmethod
-    def max_one_produtor(cls, value: list) -> list:
-        if len(value) > 1:
-            raise ValueError("Submission supports at most 1 producer")
+    def max_three_produtores(cls, value: list) -> list:
+        if len(value) > 3:
+            raise ValueError("Submission supports at most 3 producers")
         return value
 
     @field_validator("links")
@@ -416,8 +422,8 @@ class SubmissionEditRequest(BaseModel):
 
     Mesmos campos e caps apertados de SubmissionRequest (Plan 16-02), MENOS o
     honeypot 'website' (decoy publico, sem sentido no fluxo admin). Sem o
-    'website', o corpo de cardinalidade MAXIMA fica em 3711 bytes (medido),
-    ainda abaixo de _MAX_BODY_BYTES=4096 — nenhuma excecao de path necessaria.
+    'website', o corpo de cardinalidade MAXIMA fica em 4361 bytes (medido),
+    ainda abaixo de _MAX_BODY_BYTES=5120 — nenhuma excecao de path necessaria.
     """
 
     artistas: list[SubmissionArtist]
@@ -465,9 +471,9 @@ class SubmissionEditRequest(BaseModel):
 
     @field_validator("produtores")
     @classmethod
-    def max_one_produtor(cls, value: list) -> list:
-        if len(value) > 1:
-            raise ValueError("Submission supports at most 1 producer")
+    def max_three_produtores(cls, value: list) -> list:
+        if len(value) > 3:
+            raise ValueError("Submission supports at most 3 producers")
         return value
 
     @field_validator("links")
@@ -1431,7 +1437,9 @@ app = FastAPI(
 
 app.state.limiter = limiter
 
-_MAX_BODY_BYTES = 4 * 1024  # 4 KB — far exceeds any valid YouTube URL POST body
+_MAX_BODY_BYTES = 5 * 1024  # 5 KB — SEC-SUBMIT-04: acomoda submissao com 3 produtores
+# (subiu de 4KB; ver SubmissionRequest docstring e STATE.md Key Decisions) e ainda
+# excede em muito qualquer JobRequest (so uma URL) ou payload de edicao legitimo.
 _ANALYZE_MAX_BYTES = 50 * 1024 * 1024  # 50 MB — legitimate audio file upload (WAV ~5min, MP3 ~45min)
 _ANALYZE_MULTIPART_OVERHEAD_BYTES = 1024 * 1024
 _ALLOWED_AUDIO_EXTENSIONS = frozenset({".wav", ".mp3", ".flac", ".m4a"})

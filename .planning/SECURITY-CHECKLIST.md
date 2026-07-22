@@ -77,9 +77,9 @@
 
 ## 3. HTTP Hardening (controles ja implementados em api/main.py)
 
-### SEC-TEST-01 — Body size limit 4KB
+### SEC-TEST-01 — Body size limit 5KB
 
-- [ ] Middleware `_limit_body_size` retorna 413 para `Content-Length > 4096`
+- [ ] Middleware `_limit_body_size` retorna 413 para `Content-Length > 5120` (subiu de 4096 — SEC-SUBMIT-04, produtores 1->3)
 - **Verificacao:** `pytest tests/test_security.py::test_body_size_limit -x`
 - **Threat:** Memory exhaustion via body injection
 
@@ -267,10 +267,10 @@
 - **Verificacao:** `pytest tests/test_security.py::test_get_submissions_requires_admin tests/test_security.py::test_patch_submission_requires_csrf tests/test_security.py::test_reject_and_archive_submission tests/test_security.py::test_submission_admin_mutations_require_csrf -x`
 - **Threat:** Spoofing / Tampering — sessao roubada/CSRF poderia forjar edicao, transicao de status ou publicacao
 
-### SEC-SUBMIT-04 — Body size 4KB cobre o payload de cardinalidade maxima
+### SEC-SUBMIT-04 — Body size 5KB cobre o payload de cardinalidade maxima
 
 - [ ] Nenhuma excecao de path adicionada em `_limit_body_size` para `/submissions` ou `/yonkou/submissions/{id}`
-- [ ] Caps do Plan 16-02 mantem o payload publico maximo em 3726 bytes e o payload admin de edicao em 3711 bytes — ambos abaixo de `_MAX_BODY_BYTES=4096`
+- [ ] Produtores subiu de <=1 para <=3 (paridade com artistas na UI publica); caps do Plan 16-02 mantem o payload publico maximo em 4376 bytes e o payload admin de edicao em 4361 bytes — ambos abaixo de `_MAX_BODY_BYTES=5120` (subiu de 4096 junto, remedido e documentado em STATE.md Key Decisions)
 - **Verificacao:** `pytest tests/test_security.py::test_submission_body_size_enforced -x`
 - **Threat:** Denial of Service — corpo oversized nao deve chegar ao parsing Pydantic (413 antes de 500)
 
