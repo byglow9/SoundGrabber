@@ -1667,6 +1667,29 @@ def get_updates(
     return entries
 
 
+@app.post("/submissions", status_code=202)
+@limiter.limit(f"{settings.submission_rate_limit_per_hour}/hour")
+def submit_submission(
+    request: Request,
+    request_body: SubmissionRequest,
+    response: Response,
+) -> dict:
+    """SUBMIT-01/D-03: intake publico de 'Participar do Som da Semana'.
+
+    Honeypot (SEC-SUBMIT-02): campo 'website' preenchido retorna o MESMO 202
+    generico, sem persistir nada e sem logar uma mensagem distinguivel de spam
+    (Anti-Pattern) — o bot nunca aprende que foi detectado.
+
+    Resposta (SEC-SUBMIT-05): corpo fixo, generico, NUNCA inclui instagram/
+    telefone/email/contato — nao ha leitura publica desta submissao depois.
+    """
+    if request_body.website.strip():
+        return {"status": "recebido"}
+    doc = _submission_document(request_body)
+    _save_submission(doc)
+    return {"status": "recebido"}
+
+
 @app.get("/yonkou")
 @limiter.limit("60/minute")
 def yonkou_panel(request: Request, response: Response) -> HTMLResponse:
