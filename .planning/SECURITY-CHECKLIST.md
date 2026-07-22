@@ -246,16 +246,16 @@
 
 ### SEC-SUBMIT-01 — POST /submissions rate limit apertado (3/hora)
 
-- [ ] `api/main.py::submit_submission` existe em `@app.post("/submissions", status_code=202)`
-- [ ] Rota decorada com `@limiter.limit(f"{settings.submission_rate_limit_per_hour}/hour")`
-- [ ] `SUBMISSION_RATE_LIMIT_PER_HOUR` configuravel via env (default 3)
+- [x] `api/main.py::submit_submission` existe em `@app.post("/submissions", status_code=202)`
+- [x] Rota decorada com `@limiter.limit(f"{settings.submission_rate_limit_per_hour}/hour")`
+- [x] `SUBMISSION_RATE_LIMIT_PER_HOUR` configuravel via env (default 3)
 - **Verificacao:** `pytest tests/test_security.py::test_submission_rate_limit -x`
 - **Threat:** Denial of Service / Repudiation — endpoint publico de escrita sem conta e superficie de spam
 
 ### SEC-SUBMIT-02 — Honeypot silencioso (campo `website`)
 
-- [ ] `SubmissionRequest.website` (decoy) preenchido retorna o MESMO 202 generico de uma submissao legitima
-- [ ] Nada e persistido quando o honeypot esta preenchido; nenhum log distinguivel de "spam" (Anti-Pattern)
+- [x] `SubmissionRequest.website` (decoy) preenchido retorna o MESMO 202 generico de uma submissao legitima
+- [x] Nada e persistido quando o honeypot esta preenchido; nenhum log distinguivel de "spam" (Anti-Pattern)
 - **Verificacao:** `pytest tests/test_security.py::test_submission_honeypot_silently_dropped -x`
 - **Threat:** Elevation of Privilege — revelar a deteccao ao bot permitiria adaptar o ataque
 
@@ -269,17 +269,18 @@
 
 ### SEC-SUBMIT-04 — Body size 4KB cobre o payload de cardinalidade maxima
 
-- [ ] Nenhuma excecao de path adicionada em `_limit_body_size` para `/submissions` ou `/yonkou/submissions/{id}`
-- [ ] Caps do Plan 16-02 mantem o payload publico maximo em 3726 bytes e o payload admin de edicao em 3711 bytes — ambos abaixo de `_MAX_BODY_BYTES=4096`
+- [x] Nenhuma excecao de path adicionada em `_limit_body_size` para `/submissions` ou `/yonkou/submissions/{id}`
+- [x] Caps do Plan 16-02 mantem o payload publico maximo em 3726 bytes e o payload admin de edicao em 3711 bytes — ambos abaixo de `_MAX_BODY_BYTES=4096`
 - **Verificacao:** `pytest tests/test_security.py::test_submission_body_size_enforced -x`
 - **Threat:** Denial of Service — corpo oversized nao deve chegar ao parsing Pydantic (413 antes de 500)
 
-### SEC-SUBMIT-05 — Resposta publica nunca ecoa dados de contato
+### SEC-SUBMIT-05 — Resposta publica nunca ecoa dados de contato; renderizacao admin XSS-safe
 
-- [ ] `POST /submissions` retorna um dict fixo (`{"status": "recebido"}`), sem instagram/telefone/email/contato
-- [ ] Nao existe endpoint publico de leitura de submissoes (somente `/yonkou/submissions`, autenticado)
-- **Verificacao:** `pytest tests/test_security.py::test_submission_response_excludes_contact -x`
-- **Threat:** Information Disclosure — dado pessoal de contato (D-08) nunca deve vazar na resposta publica
+- [x] `POST /submissions` retorna um dict fixo (`{"status": "recebido"}`), sem instagram/telefone/email/contato
+- [x] Nao existe endpoint publico de leitura de submissoes (somente `/yonkou/submissions`, autenticado)
+- [x] `static/yonkou.js` (Plan 16-06): a aba "Submissões" do painel operador renderiza TODOS os campos de uma submissao (titulo, artista, genero, descricao, contato) via `document.createElement`/`textContent`/`.value` — nunca `innerHTML` ou interpolacao de string — porque o conteudo e controlado pelo submissor e renderiza na sessao autenticada do operador (cookie admin + CSRF token), um alvo de alto valor (Pitfall 5 / T-16-02)
+- **Verificacao:** `pytest tests/test_security.py::test_submission_response_excludes_contact -x`; `pytest tests/test_frontend.py -k yonkou_has_submissions_tab -x`; inspecao manual: `grep -n "innerHTML" static/yonkou.js` no bloco "Submissões" deve retornar vazio
+- **Threat:** Information Disclosure (dado de contato) + Tampering/Elevation of Privilege (Stored XSS via campo de submissao renderizado na aba admin) — dado pessoal (D-08) nunca deve vazar na resposta publica; conteudo de submissao nunca deve executar script na sessao do operador
 
 ### SEC-SUBMIT-06 — IDOR defense em `{submission_id}`
 
@@ -338,6 +339,10 @@ pytest tests/test_security.py::test_hsts_header -q
 pytest tests/test_security.py -x -q
 pytest tests/test_frontend.py -x -q
 
+# 4.7 Verificar controles Submissoes/curadoria (Phase 16)
+pytest tests/test_security.py -k submission -q
+pytest tests/test_frontend.py -k "participar or yonkou_has_submissions_tab" -q
+
 # 5. Smoke test do health endpoint (com server up)
 curl -s http://localhost:8000/health
 
@@ -362,3 +367,4 @@ done
 | Phase 11 | Som da Semana | `/featured` e `/yonkou` rate-limited, `ADMIN_PASSWORD`, cookie assinado HttpOnly SameSite, validacao Pydantic D-03, Redis `featured:current` com JSON fallback, renderizacao `textContent` e `noopener` |
 | Phase 16 (16-03) | Submissoes publicas + curadoria | `POST /submissions` rate-limited 3/hora + honeypot silencioso + resposta sem contato; `GET /yonkou/submissions` (auth-only); `PATCH .../{id}`, `POST .../{id}/reject`, `POST .../{id}/archive` (CSRF); IDOR defense via `JOB_ID_PATTERN` antes do lookup |
 | Phase 16 (16-04) | Promote/publish (D-06/D-07) | `POST /yonkou/submissions/{id}/promote` (CSRF, 20/min) escreve somente `featured:next`; `POST /yonkou/releases/publish-next` (CSRF, 10/min) move `featured:next` -> `featured:current` e envia o antigo current para `featured:history`; `_clear_featured_next` usa `DELETE` (nao `SET` vazio) para o contrato de `None` |
+| Phase 16 (16-06) | Aba "Submissões" no painel Yonkou (curadoria completa) | Adicionada `tab-submissoes-btn`/`tab-submissoes-panel` em `_operator_panel_html` (scaffolding sem dado de usuario) + secao de edicao inline `submissao-edit-section`; `static/yonkou.js` lista/edita/promove/publica/rejeita/arquiva 100% via `document.createElement` + `textContent`/`.value` (SEC-SUBMIT-05, T-16-02); todas as mutacoes (`PATCH`, `promote`, `publish-next`, `reject`, `archive`) enviam `x-csrf-token` via `csrfHeaders()` (SEC-SUBMIT-03, T-16-07); traceability de SUBMIT-01..11 e SEC-SUBMIT-01..05 fechada em REQUIREMENTS.md; verificacao humana end-to-end do fluxo completo submeter -> curar -> publicar |
