@@ -27,7 +27,7 @@ from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, field_validator, model_validator
 
 from api.config import settings
 from api.tasks import celery_app, process_job, JobFailure, analyze_local_file
@@ -105,37 +105,47 @@ limiter = Limiter(
 )
 
 
+def _normalize_youtube_url(v: str) -> str:
+    """Valida e normaliza uma URL do YouTube para https://www.youtube.com/watch?v=ID.
+
+    Logica compartilhada por JobRequest.must_be_youtube e
+    SubmissionRequest.youtube_url_required (Phase 16 / D-11) — extraida para
+    funcao modulo-level para evitar duplicacao entre os dois modelos.
+    """
+    parsed = urlparse(v.strip())
+    if parsed.scheme not in ("http", "https"):
+        raise ValueError("URL must use http or https")
+    if parsed.netloc not in YOUTUBE_HOSTS:
+        raise ValueError(
+            f"URL must be a YouTube link (got: {parsed.netloc or '(empty)'})"
+        )
+
+    # Normaliza para https://www.youtube.com/watch?v=ID — descarta list=, si=,
+    # start_radio= e quaisquer outros parâmetros que causam rejeição no yt-dlp
+    # quando noplaylist=True está ativo.
+    if parsed.netloc == "youtu.be":
+        # youtu.be/VIDEO_ID[?qualquer_coisa]
+        video_id = parsed.path.lstrip("/").split("/")[0]
+    else:
+        # youtube.com/watch?v=VIDEO_ID[&list=...&outros]
+        video_id = parse_qs(parsed.query).get("v", [None])[0]
+
+    if not video_id or len(video_id) != 11:
+        raise ValueError(
+            "Não foi possível identificar o vídeo na URL. "
+            "Use o link direto do vídeo (ex: youtube.com/watch?v=ID)."
+        )
+
+    return f"https://www.youtube.com/watch?v={video_id}"
+
+
 class JobRequest(BaseModel):
     youtube_url: str
 
     @field_validator("youtube_url")
     @classmethod
     def must_be_youtube(cls, v: str) -> str:
-        parsed = urlparse(v.strip())
-        if parsed.scheme not in ("http", "https"):
-            raise ValueError("URL must use http or https")
-        if parsed.netloc not in YOUTUBE_HOSTS:
-            raise ValueError(
-                f"URL must be a YouTube link (got: {parsed.netloc or '(empty)'})"
-            )
-
-        # Normaliza para https://www.youtube.com/watch?v=ID — descarta list=, si=,
-        # start_radio= e quaisquer outros parâmetros que causam rejeição no yt-dlp
-        # quando noplaylist=True está ativo.
-        if parsed.netloc == "youtu.be":
-            # youtu.be/VIDEO_ID[?qualquer_coisa]
-            video_id = parsed.path.lstrip("/").split("/")[0]
-        else:
-            # youtube.com/watch?v=VIDEO_ID[&list=...&outros]
-            video_id = parse_qs(parsed.query).get("v", [None])[0]
-
-        if not video_id or len(video_id) != 11:
-            raise ValueError(
-                "Não foi possível identificar o vídeo na URL. "
-                "Use o link direto do vídeo (ex: youtube.com/watch?v=ID)."
-            )
-
-        return f"https://www.youtube.com/watch?v={video_id}"
+        return _normalize_youtube_url(v)
 
 
 class FeaturedArtist(BaseModel):
@@ -231,6 +241,164 @@ class FeaturedReleaseRequest(BaseModel):
     def max_four_links(cls, value: list[FeaturedLink]) -> list[FeaturedLink]:
         if len(value) > 4:
             raise ValueError("Featured release supports at most four links")
+        return value
+
+
+# Phase 16 (SUBMIT-02/SEC-SUBMIT-04): modelos PUBLICOS da submissao "Participar do
+# Som da Semana". Distintos de FeaturedArtist/FeaturedLink (que mantem seus caps
+# admin 200/500) com caps MAIS APERTADOS (nome<=100/url<=200, label<=30/url<=220)
+# para que o payload de cardinalidade maxima (3 artistas + 1 produtor + 4 links,
+# todos os campos no cap) fique medido em 3726 bytes — abaixo de _MAX_BODY_BYTES=4096
+# (Pitfall 2). NAO reutilizar FeaturedArtist/FeaturedLink aqui.
+class SubmissionArtist(BaseModel):
+    nome: str
+    url: str = ""
+
+    @field_validator("nome")
+    @classmethod
+    def nome_required(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("Artist name is required")
+        if len(value) > 100:
+            raise ValueError("Artist name must be 100 characters or less")
+        return value
+
+    @field_validator("url")
+    @classmethod
+    def url_optional_http(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            return value
+        parsed = urlparse(value)
+        if parsed.scheme not in ("http", "https") or not parsed.netloc:
+            raise ValueError("Artist URL must use http or https")
+        if len(value) > 200:
+            raise ValueError("Artist URL must be 200 characters or less")
+        return value
+
+
+class SubmissionLink(BaseModel):
+    label: str
+    url: str
+
+    @field_validator("label")
+    @classmethod
+    def label_required(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("Link label is required")
+        if len(value) > 30:
+            raise ValueError("Link label must be 30 characters or less")
+        return value
+
+    @field_validator("url")
+    @classmethod
+    def url_must_be_http(cls, value: str) -> str:
+        value = value.strip()
+        parsed = urlparse(value)
+        if parsed.scheme not in ("http", "https") or not parsed.netloc:
+            raise ValueError("Link URL must use http or https")
+        if len(value) > 220:
+            raise ValueError("Link URL must be 220 characters or less")
+        return value
+
+
+class SubmissionContact(BaseModel):
+    """D-08: pelo menos um canal de contato e obrigatorio.
+
+    Primeiro model_validator(mode="after") do projeto — os field_validator
+    individuais nao conseguem expressar uma regra "pelo menos um dos tres".
+    """
+
+    instagram: str = ""
+    telefone: str = ""
+    email: str = ""
+
+    @field_validator("instagram", "telefone", "email")
+    @classmethod
+    def contact_field_capped(cls, value: str) -> str:
+        value = value.strip()
+        if len(value) > 150:
+            raise ValueError("Contact fields must be 150 characters or less")
+        return value
+
+    @model_validator(mode="after")
+    def at_least_one_contact(self) -> "SubmissionContact":
+        if not (self.instagram or self.telefone or self.email):
+            raise ValueError(
+                "Informe pelo menos um contato: instagram, telefone ou email"
+            )
+        return self
+
+
+class SubmissionRequest(BaseModel):
+    """Payload publico de 'Participar do Som da Semana' (SUBMIT-02/03/09).
+
+    Caps de campo E de lista (artistas<=3, produtores<=1, links<=4) sao
+    deliberadamente mais apertados que FeaturedReleaseRequest (uso admin) —
+    a combinacao mantem o payload de cardinalidade MAXIMA (todo campo no cap,
+    todo slot de lista preenchido) medido em 3726 bytes, abaixo de
+    _MAX_BODY_BYTES=4096 com 370 bytes de margem (SEC-SUBMIT-04 / Pitfall 2).
+    NAO aumentar estes caps sem re-medir o payload de cardinalidade maxima.
+    """
+
+    artistas: list[SubmissionArtist]
+    produtores: list[SubmissionArtist] = []
+    titulo: str
+    genero: str
+    descricao: str
+    youtube_url: str
+    links: list[SubmissionLink] = []
+    contato: SubmissionContact
+    website: str = ""  # honeypot decoy (D-03/Pitfall 3) — endpoint (Plan 16-03) descarta silenciosamente
+
+    @field_validator("titulo", "genero")
+    @classmethod
+    def short_text_required(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("Field cannot be empty")
+        if len(value) > 150:
+            raise ValueError("Field must be 150 characters or less")
+        return value
+
+    @field_validator("descricao")
+    @classmethod
+    def descricao_required(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("Description cannot be empty")
+        if len(value) > 350:
+            raise ValueError("Description must be 350 characters or less")
+        return value
+
+    @field_validator("youtube_url")
+    @classmethod
+    def youtube_url_required(cls, value: str) -> str:
+        return _normalize_youtube_url(value)
+
+    @field_validator("artistas")
+    @classmethod
+    def artistas_required(cls, value: list) -> list:
+        if not value:
+            raise ValueError("At least one artist is required")
+        if len(value) > 3:
+            raise ValueError("Submission supports at most 3 artists")
+        return value
+
+    @field_validator("produtores")
+    @classmethod
+    def max_one_produtor(cls, value: list) -> list:
+        if len(value) > 1:
+            raise ValueError("Submission supports at most 1 producer")
+        return value
+
+    @field_validator("links")
+    @classmethod
+    def max_four_links(cls, value: list[SubmissionLink]) -> list[SubmissionLink]:
+        if len(value) > 4:
+            raise ValueError("Submission supports at most four links")
         return value
 
 
