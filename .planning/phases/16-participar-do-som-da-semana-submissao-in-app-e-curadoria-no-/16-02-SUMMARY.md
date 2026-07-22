@@ -105,3 +105,13 @@ None - no external service configuration required.
 ---
 *Phase: 16-participar-do-som-da-semana-submissao-in-app-e-curadoria-no-*
 *Completed: 2026-07-22*
+
+## Self-Check: PASSED
+
+- FOUND: .planning/phases/16-participar-do-som-da-semana-submissao-in-app-e-curadoria-no-/16-02-SUMMARY.md
+- FOUND: api/config.py
+- FOUND: api/main.py
+- FOUND commit e94ceb0 (Task 1: submission settings in config.py)
+- FOUND commit e0cd39d (Task 2: SubmissionContact/SubmissionRequest models)
+- FOUND commit f31f0eb (Task 3: submission storage Hash+ZSet+fallback+cap eviction)
+- FOUND commit 6f58f67 (docs: plan 02 summary)
