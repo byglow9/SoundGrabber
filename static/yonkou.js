@@ -529,6 +529,50 @@ function submissaoContactText(contato) {
   return parts.join(' / ');
 }
 
+// ── Preview do card "Som da Semana" — usa sgBuildFeaturedCard (static/
+// featured-card.js), a MESMA funcao que renderiza a sidebar publica, para
+// o preview ser fiel ao que vai aparecer na home. Nao chama /featured nem
+// muda estado algum — e so client-side, a partir dos dados ja carregados
+// da submissao.
+
+function submissaoToFeaturedPreviewData(sub) {
+  var links = Array.isArray(sub.links) ? sub.links.slice() : [];
+  var hasYoutubeLink = links.some(function(l) { return l && l.label === 'Youtube'; });
+  if (sub.youtube_url && !hasYoutubeLink) {
+    links = [{ label: 'Youtube', url: sub.youtube_url }].concat(links);
+  }
+  return {
+    titulo: sub.titulo,
+    artistas: sub.artistas,
+    produtores: sub.produtores,
+    genero: sub.genero,
+    descricao: sub.descricao,
+    links: links,
+    data_adicao: new Date().toISOString().slice(0, 10)
+  };
+}
+
+function openPreviewModal(sub) {
+  var modal = document.getElementById('preview-modal');
+  var wrap = document.getElementById('preview-modal-card-wrap');
+  if (!modal || !wrap) return;
+  while (wrap.firstChild) wrap.removeChild(wrap.firstChild);
+  wrap.appendChild(sgBuildFeaturedCard(submissaoToFeaturedPreviewData(sub)));
+  modal.style.display = '';
+}
+
+function closePreviewModal() {
+  var modal = document.getElementById('preview-modal');
+  if (modal) modal.style.display = 'none';
+}
+
+function wirePreviewModal() {
+  var backdrop = document.getElementById('preview-modal-backdrop');
+  var closeBtn = document.getElementById('preview-modal-close');
+  if (backdrop) backdrop.addEventListener('click', closePreviewModal);
+  if (closeBtn) closeBtn.addEventListener('click', closePreviewModal);
+}
+
 function createSubmissaoActionButton(label, className, handler) {
   var btn = document.createElement('button');
   btn.type = 'button';
@@ -572,6 +616,9 @@ function createSubmissaoRow(sub) {
   cell(submissaoContactText(sub.contato));
 
   var actionsTd = document.createElement('td');
+  actionsTd.appendChild(createSubmissaoActionButton('Preview', 'yonkou-secondary', function() {
+    openPreviewModal(sub);
+  }));
   actionsTd.appendChild(createSubmissaoActionButton('Editar', 'yonkou-secondary', function() {
     openSubmissaoEditor(sub);
   }));
@@ -915,4 +962,5 @@ document.addEventListener('DOMContentLoaded', function() {
   wireSubmissaoProdutoresList();
   wireSubmissaoVoltarButton();
   wireSubmissaoEditor();
+  wirePreviewModal();
 });

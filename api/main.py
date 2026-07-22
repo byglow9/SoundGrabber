@@ -1239,6 +1239,14 @@ def _operator_panel_html(
 </table>
 </div>
 </div>
+<div id="preview-modal" style="display:none">
+<div id="preview-modal-backdrop"></div>
+<div id="preview-modal-content">
+<button type="button" id="preview-modal-close" class="yonkou-secondary">fechar</button>
+<div id="preview-modal-kicker">preview — como vai aparecer na home</div>
+<div id="preview-modal-card-wrap"></div>
+</div>
+</div>
 <div id="form-section" style="display:none">
 <table width="100%" cellpadding="0" cellspacing="0" id="form-header-table">
 <tr>
@@ -1442,6 +1450,7 @@ def _operator_panel_html(
 </form>
 </div>
 <div id="yonkou-message"></div>
+<script src="/static/featured-card.js"></script>
 <script src="/static/yonkou.js"></script>
 </td></tr>
 </table>

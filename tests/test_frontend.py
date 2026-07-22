@@ -266,34 +266,42 @@ def test_public_page_does_not_link_yonkou(api_client):
 
 
 def test_featured_sidebar_static_contract():
-    """D-02/D-05: HTML e JS declaram sidebar injetada somente com conteudo."""
+    """D-02/D-05: HTML e JS declaram sidebar injetada somente com conteudo.
+
+    A construcao do card ("featured-card" etc.) vive em static/featured-card.js
+    (Plan 16-06: extraida de app.js para ser compartilhada com o preview da
+    aba Submissões no painel Yonkou) — as duas fontes contam para o contrato.
+    """
     index_html = (PROJECT_ROOT / "static" / "index.html").read_text(encoding="utf-8")
     app_js = (PROJECT_ROOT / "static" / "app.js").read_text(encoding="utf-8")
+    featured_card_js = (PROJECT_ROOT / "static" / "featured-card.js").read_text(encoding="utf-8")
+    combined_js = app_js + featured_card_js
 
-    assert 'id="featured-sidebar"' in index_html or "featured-sidebar" in app_js
-    assert 'id="featured-card"' in index_html or "featured-card" in app_js
-    assert 'id="featured-title"' in index_html or "featured-title" in app_js
-    assert 'id="featured-separator"' in index_html or "featured-separator" in app_js
-    assert "featured-link" in index_html or "featured-link" in app_js
+    assert 'id="featured-sidebar"' in index_html or "featured-sidebar" in combined_js
+    assert 'id="featured-card"' in index_html or "featured-card" in combined_js
+    assert 'id="featured-title"' in index_html or "featured-title" in combined_js
+    assert 'id="featured-separator"' in index_html or "featured-separator" in combined_js
+    assert "featured-link" in index_html or "featured-link" in combined_js
     assert "fetch('/featured')" in app_js or 'fetch("/featured")' in app_js
-    assert "SOM DA SEMANA" in app_js or "SOM DA SEMANA" in index_html
-    assert "----" in app_js or "featured-separator" in app_js
-    assert "textContent" in app_js
-    assert "innerHTML" not in app_js, (
-        "static/app.js nao deve usar innerHTML; conteudo featured deve ser renderizado com textContent"
+    assert "SOM DA SEMANA" in combined_js or "SOM DA SEMANA" in index_html
+    assert "----" in combined_js or "featured-separator" in combined_js
+    assert "textContent" in combined_js
+    assert "innerHTML" not in combined_js, (
+        "static/app.js e static/featured-card.js nao devem usar innerHTML; "
+        "conteudo featured deve ser renderizado com textContent"
     )
 
 
 def test_featured_links_are_noopener_blank():
     """D-04/T-11-05: links featured abrem em nova aba sem opener."""
-    app_js = (PROJECT_ROOT / "static" / "app.js").read_text(encoding="utf-8")
+    featured_card_js = (PROJECT_ROOT / "static" / "featured-card.js").read_text(encoding="utf-8")
 
-    assert "featured-link" in app_js
-    assert ".target" in app_js or "setAttribute('target'" in app_js or 'setAttribute("target"' in app_js
-    assert "_blank" in app_js
-    assert ".rel" in app_js or "setAttribute('rel'" in app_js or 'setAttribute("rel"' in app_js
-    assert "noopener" in app_js
-    assert "textContent" in app_js
+    assert "featured-link" in featured_card_js
+    assert ".target" in featured_card_js or "setAttribute('target'" in featured_card_js or 'setAttribute("target"' in featured_card_js
+    assert "_blank" in featured_card_js
+    assert ".rel" in featured_card_js or "setAttribute('rel'" in featured_card_js or 'setAttribute("rel"' in featured_card_js
+    assert "noopener" in featured_card_js
+    assert "textContent" in featured_card_js
 
 
 def test_featured_sidebar_css_contract():
