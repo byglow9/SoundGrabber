@@ -21,22 +21,33 @@ function csrfHeaders() {
 }
 
 function showYonkouTab(tabName) {
-  var somPanel = document.getElementById('tab-som-panel');
-  var updatesPanel = document.getElementById('tab-updates-panel');
-  var somBtn = document.getElementById('tab-som-btn');
-  var updatesBtn = document.getElementById('tab-updates-btn');
-  if (!somPanel || !updatesPanel || !somBtn || !updatesBtn) return;
+  var panels = {
+    som: document.getElementById('tab-som-panel'),
+    updates: document.getElementById('tab-updates-panel'),
+    submissoes: document.getElementById('tab-submissoes-panel')
+  };
+  var buttons = {
+    som: document.getElementById('tab-som-btn'),
+    updates: document.getElementById('tab-updates-btn'),
+    submissoes: document.getElementById('tab-submissoes-btn')
+  };
+  if (!panels.som || !panels.updates || !panels.submissoes ||
+      !buttons.som || !buttons.updates || !buttons.submissoes) return;
 
-  var showUpdates = tabName === 'updates';
-  somPanel.style.display = showUpdates ? 'none' : '';
-  updatesPanel.style.display = showUpdates ? '' : 'none';
-  somBtn.className = showUpdates ? 'yonkou-tab' : 'yonkou-tab yonkou-tab-active';
-  updatesBtn.className = showUpdates ? 'yonkou-tab yonkou-tab-active' : 'yonkou-tab';
+  Object.keys(panels).forEach(function(key) {
+    panels[key].style.display = key === tabName ? '' : 'none';
+    buttons[key].className = key === tabName ? 'yonkou-tab yonkou-tab-active' : 'yonkou-tab';
+  });
+
+  if (tabName === 'submissoes') {
+    loadSubmissoes();
+  }
 }
 
 function wireYonkouTabs() {
   var somBtn = document.getElementById('tab-som-btn');
   var updatesBtn = document.getElementById('tab-updates-btn');
+  var submissoesBtn = document.getElementById('tab-submissoes-btn');
   if (somBtn) {
     somBtn.addEventListener('click', function() {
       showYonkouTab('som');
@@ -45,6 +56,11 @@ function wireYonkouTabs() {
   if (updatesBtn) {
     updatesBtn.addEventListener('click', function() {
       showYonkouTab('updates');
+    });
+  }
+  if (submissoesBtn) {
+    submissoesBtn.addEventListener('click', function() {
+      showYonkouTab('submissoes');
     });
   }
 }
@@ -477,6 +493,406 @@ function wireSystemUpdateEditor() {
   });
 }
 
+// ── Submissões (Phase 16 / SUBMIT-04/05/06/07/08) ───────────────────────────────
+// XSS-safe rendering: every submission-derived value is placed via textContent
+// or the .value property — NEVER innerHTML/string interpolation (Pitfall 5,
+// T-16-02) because a submitter-controlled field renders in the operator's
+// authenticated browser session (admin cookie + CSRF token).
+
+var _currentSubmissaoId = null;
+
+var SUBMISSAO_STATUS_LABELS = {
+  pendente: 'Pendente',
+  promovida: 'Promovida',
+  rejeitada: 'Rejeitada',
+  arquivada: 'Arquivada'
+};
+
+function submissaoStatusLabel(status) {
+  return SUBMISSAO_STATUS_LABELS[status] || status || '';
+}
+
+function submissaoArtistasText(artistas) {
+  if (!Array.isArray(artistas)) return '';
+  return artistas
+    .map(function(a) { return a && a.nome ? a.nome : ''; })
+    .filter(function(nome) { return nome; })
+    .join(', ');
+}
+
+function submissaoContactText(contato) {
+  if (!contato) return '';
+  var parts = [];
+  if (contato.instagram) parts.push('IG: ' + contato.instagram);
+  if (contato.telefone) parts.push('Tel: ' + contato.telefone);
+  if (contato.email) parts.push('Email: ' + contato.email);
+  return parts.join(' / ');
+}
+
+function createSubmissaoActionButton(label, className, handler) {
+  var btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = className || 'yonkou-secondary';
+  btn.textContent = label;
+  btn.addEventListener('click', handler);
+  return btn;
+}
+
+function submissaoMutationFetch(url, method, onSuccess) {
+  fetch(url, {
+    method: method,
+    headers: csrfHeaders()
+  }).then(function(response) {
+    if (response.ok) {
+      onSuccess();
+      return;
+    }
+    return response.json().catch(function() { return {}; }).then(function(data) {
+      yonkouMessage(data.error || data.detail || 'Nao foi possivel completar a acao.');
+    });
+  }).catch(function(err) {
+    yonkouMessage('Erro de rede: ' + err.message);
+  });
+}
+
+function createSubmissaoRow(sub) {
+  var row = document.createElement('tr');
+
+  function cell(text) {
+    var td = document.createElement('td');
+    td.textContent = text || '';
+    row.appendChild(td);
+    return td;
+  }
+
+  cell(sub.titulo);
+  cell(submissaoArtistasText(sub.artistas));
+  cell(sub.genero);
+  cell(submissaoStatusLabel(sub.status));
+  cell(submissaoContactText(sub.contato));
+
+  var actionsTd = document.createElement('td');
+  actionsTd.appendChild(createSubmissaoActionButton('Editar', 'yonkou-secondary', function() {
+    openSubmissaoEditor(sub);
+  }));
+  actionsTd.appendChild(createSubmissaoActionButton('Promover', 'yonkou-secondary', function() {
+    submissaoMutationFetch(
+      '/yonkou/submissions/' + encodeURIComponent(sub.id) + '/promote', 'POST', loadSubmissoes
+    );
+  }));
+  actionsTd.appendChild(createSubmissaoActionButton('Publicar', 'yonkou-primary', function() {
+    submissaoMutationFetch('/yonkou/releases/publish-next', 'POST', loadSubmissoes);
+  }));
+  actionsTd.appendChild(createSubmissaoActionButton('Rejeitar', 'yonkou-secondary', function() {
+    submissaoMutationFetch(
+      '/yonkou/submissions/' + encodeURIComponent(sub.id) + '/reject', 'POST', loadSubmissoes
+    );
+  }));
+  actionsTd.appendChild(createSubmissaoActionButton('Arquivar', 'yonkou-secondary', function() {
+    submissaoMutationFetch(
+      '/yonkou/submissions/' + encodeURIComponent(sub.id) + '/archive', 'POST', loadSubmissoes
+    );
+  }));
+  row.appendChild(actionsTd);
+
+  return row;
+}
+
+function renderSubmissoesTable(list) {
+  var container = document.getElementById('submissoes-list');
+  if (!container) return;
+  while (container.firstChild) container.removeChild(container.firstChild);
+
+  if (!list.length) {
+    var empty = document.createElement('div');
+    empty.className = 'yonkou-help';
+    empty.textContent = 'nenhuma submissao ainda';
+    container.appendChild(empty);
+    return;
+  }
+
+  var table = document.createElement('table');
+
+  var thead = document.createElement('thead');
+  var headRow = document.createElement('tr');
+  ['Titulo', 'Artista', 'Genero', 'Status', 'Contato', 'Acoes'].forEach(function(label) {
+    var th = document.createElement('th');
+    th.textContent = label;
+    headRow.appendChild(th);
+  });
+  thead.appendChild(headRow);
+  table.appendChild(thead);
+
+  var tbody = document.createElement('tbody');
+  list.forEach(function(sub) {
+    tbody.appendChild(createSubmissaoRow(sub));
+  });
+  table.appendChild(tbody);
+
+  container.appendChild(table);
+}
+
+function loadSubmissoes() {
+  fetch('/yonkou/submissions', { headers: { 'Content-Type': 'application/json' } })
+    .then(function(response) {
+      if (response.status === 204) return [];
+      if (!response.ok) return [];
+      return response.json();
+    })
+    .then(function(data) {
+      renderSubmissoesTable(Array.isArray(data) ? data : []);
+    })
+    .catch(function() {
+      renderSubmissoesTable([]);
+    });
+}
+
+// ── Submissão edit form (dedicated artista/produtor rows — separate container
+// ids from the featured editor so the two forms never collide) ────────────────
+
+function createSubmissaoArtistaRow(nome, url) {
+  var row = document.createElement('div');
+  row.className = 'artista-row';
+
+  var nomeInput = document.createElement('input');
+  nomeInput.className = 'yonkou-input artista-nome';
+  nomeInput.placeholder = 'nome';
+  nomeInput.value = nome || '';
+
+  var urlInput = document.createElement('input');
+  urlInput.className = 'yonkou-input artista-url';
+  urlInput.placeholder = 'link (opcional)';
+  urlInput.value = url || '';
+
+  var removeBtn = document.createElement('button');
+  removeBtn.type = 'button';
+  removeBtn.className = 'artista-remove';
+  removeBtn.textContent = '×';
+  removeBtn.addEventListener('click', function() {
+    var list = document.getElementById('submissao-artistas-list');
+    if (list && list.querySelectorAll('.artista-row').length > 1) row.remove();
+  });
+
+  row.appendChild(nomeInput);
+  row.appendChild(urlInput);
+  row.appendChild(removeBtn);
+  return row;
+}
+
+function initSubmissaoArtistasList(artistas) {
+  var list = document.getElementById('submissao-artistas-list');
+  if (!list) return;
+  while (list.firstChild) list.removeChild(list.firstChild);
+  var items = Array.isArray(artistas) ? artistas : [];
+  if (items.length === 0) {
+    list.appendChild(createSubmissaoArtistaRow('', ''));
+  } else {
+    items.forEach(function(a) {
+      list.appendChild(createSubmissaoArtistaRow(a.nome || '', a.url || ''));
+    });
+  }
+}
+
+function wireSubmissaoArtistasList() {
+  var addBtn = document.getElementById('submissao-add-artista-btn');
+  var list = document.getElementById('submissao-artistas-list');
+  if (!addBtn || !list) return;
+  addBtn.addEventListener('click', function() {
+    list.appendChild(createSubmissaoArtistaRow('', ''));
+  });
+}
+
+function submissaoArtistasFromForm() {
+  var artistas = [];
+  document.querySelectorAll('#submissao-artistas-list .artista-row').forEach(function(row) {
+    var nomeInput = row.querySelector('.artista-nome');
+    var urlInput = row.querySelector('.artista-url');
+    if (!nomeInput || !urlInput) return;
+    var nome = nomeInput.value.trim();
+    var url = urlInput.value.trim();
+    if (nome || url) artistas.push({ nome: nome, url: url });
+  });
+  return artistas;
+}
+
+function createSubmissaoProdutorRow(nome, url) {
+  var row = document.createElement('div');
+  row.className = 'produtor-row';
+
+  var nomeInput = document.createElement('input');
+  nomeInput.className = 'yonkou-input produtor-nome';
+  nomeInput.placeholder = 'nome';
+  nomeInput.value = nome || '';
+
+  var urlInput = document.createElement('input');
+  urlInput.className = 'yonkou-input produtor-url';
+  urlInput.placeholder = 'link (opcional)';
+  urlInput.value = url || '';
+
+  var removeBtn = document.createElement('button');
+  removeBtn.type = 'button';
+  removeBtn.className = 'artista-remove';
+  removeBtn.textContent = '×';
+  removeBtn.addEventListener('click', function() {
+    var list = document.getElementById('submissao-produtores-list');
+    if (list && list.querySelectorAll('.produtor-row').length > 1) row.remove();
+  });
+
+  row.appendChild(nomeInput);
+  row.appendChild(urlInput);
+  row.appendChild(removeBtn);
+  return row;
+}
+
+function initSubmissaoProdutoresList(produtores) {
+  var list = document.getElementById('submissao-produtores-list');
+  if (!list) return;
+  while (list.firstChild) list.removeChild(list.firstChild);
+  var items = Array.isArray(produtores) ? produtores : [];
+  if (items.length === 0) {
+    list.appendChild(createSubmissaoProdutorRow('', ''));
+  } else {
+    items.forEach(function(p) {
+      list.appendChild(createSubmissaoProdutorRow(p.nome || '', p.url || ''));
+    });
+  }
+}
+
+function wireSubmissaoProdutoresList() {
+  var addBtn = document.getElementById('submissao-add-produtor-btn');
+  var list = document.getElementById('submissao-produtores-list');
+  if (!addBtn || !list) return;
+  addBtn.addEventListener('click', function() {
+    list.appendChild(createSubmissaoProdutorRow('', ''));
+  });
+}
+
+function submissaoProdutoresFromForm() {
+  var produtores = [];
+  document.querySelectorAll('#submissao-produtores-list .produtor-nome').forEach(function(nomeInput) {
+    var row = nomeInput.closest('.produtor-row');
+    var urlInput = row ? row.querySelector('.produtor-url') : null;
+    var nome = nomeInput.value.trim();
+    var url = urlInput ? urlInput.value.trim() : '';
+    if (nome || url) produtores.push({ nome: nome, url: url });
+  });
+  return produtores;
+}
+
+function setInputValue(id, value) {
+  var el = document.getElementById(id);
+  if (el) el.value = value || '';
+}
+
+function submissaoLinksFromForm() {
+  var links = [];
+  for (var i = 1; i <= 4; i++) {
+    var labelInput = document.getElementById('submissao-link-label-' + i);
+    var urlInput = document.getElementById('submissao-link-url-' + i);
+    if (!labelInput || !urlInput) continue;
+    var label = labelInput.value.trim();
+    var url = urlInput.value.trim();
+    if (label && url) links.push({ label: label, url: url });
+  }
+  return links;
+}
+
+function setSubmissaoLinksInForm(links) {
+  var list = Array.isArray(links) ? links : [];
+  for (var i = 1; i <= 4; i++) {
+    var link = list[i - 1] || {};
+    setInputValue('submissao-link-label-' + i, link.label);
+    setInputValue('submissao-link-url-' + i, link.url);
+  }
+}
+
+function showSubmissaoEditSection() {
+  var dashboard = document.getElementById('yonkou-dashboard');
+  var section = document.getElementById('submissao-edit-section');
+  if (dashboard) dashboard.style.display = 'none';
+  if (section) section.style.display = '';
+}
+
+function hideSubmissaoEditSection() {
+  var dashboard = document.getElementById('yonkou-dashboard');
+  var section = document.getElementById('submissao-edit-section');
+  if (section) section.style.display = 'none';
+  if (dashboard) dashboard.style.display = '';
+  showYonkouTab('submissoes');
+  yonkouMessage('');
+}
+
+function wireSubmissaoVoltarButton() {
+  var btn = document.getElementById('submissao-voltar-btn');
+  if (!btn) return;
+  btn.addEventListener('click', hideSubmissaoEditSection);
+}
+
+function openSubmissaoEditor(sub) {
+  _currentSubmissaoId = sub.id;
+  initSubmissaoArtistasList(sub.artistas);
+  initSubmissaoProdutoresList(sub.produtores);
+  setInputValue('submissao-titulo', sub.titulo);
+  setInputValue('submissao-genero', sub.genero);
+  setInputValue('submissao-youtube-url', sub.youtube_url);
+  setInputValue('submissao-descricao', sub.descricao);
+  var contato = sub.contato || {};
+  setInputValue('submissao-instagram', contato.instagram);
+  setInputValue('submissao-telefone', contato.telefone);
+  setInputValue('submissao-email', contato.email);
+  setSubmissaoLinksInForm(sub.links);
+  showSubmissaoEditSection();
+  yonkouMessage('');
+}
+
+function wireSubmissaoEditor() {
+  var form = document.getElementById('submissao-editor');
+  if (!form) return;
+
+  form.addEventListener('submit', function(event) {
+    event.preventDefault();
+    if (!_currentSubmissaoId) {
+      yonkouMessage('Nenhuma submissao selecionada.');
+      return;
+    }
+    try {
+      var payload = {
+        artistas: submissaoArtistasFromForm(),
+        produtores: submissaoProdutoresFromForm(),
+        titulo: document.getElementById('submissao-titulo').value.trim(),
+        genero: document.getElementById('submissao-genero').value.trim(),
+        descricao: document.getElementById('submissao-descricao').value.trim(),
+        youtube_url: document.getElementById('submissao-youtube-url').value.trim(),
+        links: submissaoLinksFromForm(),
+        contato: {
+          instagram: document.getElementById('submissao-instagram').value.trim(),
+          telefone: document.getElementById('submissao-telefone').value.trim(),
+          email: document.getElementById('submissao-email').value.trim()
+        }
+      };
+
+      fetch('/yonkou/submissions/' + encodeURIComponent(_currentSubmissaoId), {
+        method: 'PATCH',
+        headers: csrfHeaders(),
+        body: JSON.stringify(payload)
+      }).then(function(response) {
+        if (response.ok) {
+          hideSubmissaoEditSection();
+          loadSubmissoes();
+          return;
+        }
+        return response.json().catch(function() { return {}; }).then(function(data) {
+          yonkouMessage(data.error || data.detail || 'Nao foi possivel salvar a submissao.');
+        });
+      }).catch(function(err) {
+        yonkouMessage('Erro de rede: ' + err.message);
+      });
+    } catch (err) {
+      yonkouMessage('Erro ao preparar dados: ' + err.message);
+    }
+  });
+}
+
 // ── Init ──────────────────────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -495,4 +911,8 @@ document.addEventListener('DOMContentLoaded', function() {
   wireFeaturedEditor();
   wireSystemUpdateEditor();
   wireSelectLabels();
+  wireSubmissaoArtistasList();
+  wireSubmissaoProdutoresList();
+  wireSubmissaoVoltarButton();
+  wireSubmissaoEditor();
 });

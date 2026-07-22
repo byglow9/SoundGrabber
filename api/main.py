@@ -1181,6 +1181,7 @@ def _operator_panel_html(
 <div id="yonkou-tabs">
 <button type="button" id="tab-som-btn" class="yonkou-tab yonkou-tab-active">Som da Semana</button>
 <button type="button" id="tab-updates-btn" class="yonkou-tab">Notas de Atualização</button>
+<button type="button" id="tab-submissoes-btn" class="yonkou-tab">Submissões</button>
 </div>
 <div id="tab-som-panel">
 <table width="100%" cellpadding="0" cellspacing="10" id="dashboard-table">
@@ -1218,6 +1219,15 @@ def _operator_panel_html(
 <tr>
 <td colspan="2" id="updates-admin-cell" style="padding-top:18px">
 <button type="button" id="new-update-btn" class="yonkou-primary" style="width:100%">+ Publicar atualização do sistema</button>
+</td>
+</tr>
+</table>
+</div>
+<div id="tab-submissoes-panel" style="display:none">
+<table width="100%" cellpadding="0" cellspacing="10" id="submissoes-dashboard-table">
+<tr>
+<td id="submissoes-cell">
+<div id="submissoes-list"></div>
 </td>
 </tr>
 </table>
@@ -1335,6 +1345,94 @@ def _operator_panel_html(
 </tr>
 </table>
 <button type="submit" class="yonkou-primary">Publicar atualização</button>
+</form>
+</div>
+<div id="submissao-edit-section" style="display:none">
+<table width="100%" cellpadding="0" cellspacing="0" id="submissao-edit-header-table">
+<tr>
+<td><button type="button" id="submissao-voltar-btn" class="yonkou-secondary">&#x2190; voltar</button></td>
+<td align="right"><h2 style="margin:0">Editar Submissão</h2></td>
+</tr>
+</table>
+<form id="submissao-editor" class="yonkou-form">
+<table id="submissao-edit-table" width="100%" cellpadding="0" cellspacing="0">
+<tr>
+<td class="yonkou-label-cell" style="vertical-align:top;padding-top:10px">Artistas</td>
+<td>
+<div id="submissao-artistas-list"></div>
+<button type="button" id="submissao-add-artista-btn" class="yonkou-secondary">+ artista</button>
+</td>
+</tr>
+<tr>
+<td class="yonkou-label-cell" style="vertical-align:top;padding-top:10px">Produtores</td>
+<td>
+<div id="submissao-produtores-list"></div>
+<button type="button" id="submissao-add-produtor-btn" class="yonkou-secondary">+ produtor</button>
+</td>
+</tr>
+<tr>
+<td class="yonkou-label-cell"><label for="submissao-titulo">Titulo</label></td>
+<td><input id="submissao-titulo" class="yonkou-input"></td>
+</tr>
+<tr>
+<td class="yonkou-label-cell"><label for="submissao-genero">Genero</label></td>
+<td><input id="submissao-genero" class="yonkou-input"></td>
+</tr>
+<tr>
+<td class="yonkou-label-cell"><label for="submissao-youtube-url">Youtube URL</label></td>
+<td><input id="submissao-youtube-url" class="yonkou-input"></td>
+</tr>
+<tr>
+<td class="yonkou-label-cell"><label for="submissao-descricao">Descricao</label></td>
+<td><textarea id="submissao-descricao" rows="4" class="yonkou-input yonkou-textarea"></textarea></td>
+</tr>
+<tr>
+<td class="yonkou-label-cell"><label for="submissao-instagram">Instagram</label></td>
+<td><input id="submissao-instagram" class="yonkou-input"></td>
+</tr>
+<tr>
+<td class="yonkou-label-cell"><label for="submissao-telefone">Telefone</label></td>
+<td><input id="submissao-telefone" class="yonkou-input"></td>
+</tr>
+<tr>
+<td class="yonkou-label-cell"><label for="submissao-email">Email</label></td>
+<td><input id="submissao-email" class="yonkou-input"></td>
+</tr>
+</table>
+<fieldset id="submissao-links">
+<legend>Links externos</legend>
+<table id="submissao-links-table" width="100%" cellpadding="0" cellspacing="0">
+<tr>
+<td class="yonkou-links-cell yonkou-links-label"><label for="submissao-link-label-1">Label 1</label>
+<input id="submissao-link-label-1" class="yonkou-input"></td>
+<td class="yonkou-links-cell yonkou-links-url">
+<label>URL 1 <input id="submissao-link-url-1" class="yonkou-input"></label>
+</td>
+</tr>
+<tr>
+<td class="yonkou-links-cell yonkou-links-label"><label for="submissao-link-label-2">Label 2</label>
+<input id="submissao-link-label-2" class="yonkou-input"></td>
+<td class="yonkou-links-cell yonkou-links-url">
+<label>URL 2 <input id="submissao-link-url-2" class="yonkou-input"></label>
+</td>
+</tr>
+<tr>
+<td class="yonkou-links-cell yonkou-links-label"><label for="submissao-link-label-3">Label 3</label>
+<input id="submissao-link-label-3" class="yonkou-input"></td>
+<td class="yonkou-links-cell yonkou-links-url">
+<label>URL 3 <input id="submissao-link-url-3" class="yonkou-input"></label>
+</td>
+</tr>
+<tr>
+<td class="yonkou-links-cell yonkou-links-label"><label for="submissao-link-label-4">Label 4</label>
+<input id="submissao-link-label-4" class="yonkou-input"></td>
+<td class="yonkou-links-cell yonkou-links-url">
+<label>URL 4 <input id="submissao-link-url-4" class="yonkou-input"></label>
+</td>
+</tr>
+</table>
+</fieldset>
+<button type="submit" class="yonkou-primary">Salvar</button>
 </form>
 </div>
 <div id="yonkou-message"></div>
