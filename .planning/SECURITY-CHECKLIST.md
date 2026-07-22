@@ -261,11 +261,11 @@
 
 ### SEC-SUBMIT-03 — Mutacoes admin exigem CSRF; leituras exigem apenas sessao
 
-- [ ] `GET /yonkou/submissions` usa `dependencies=[Depends(_admin_required_dependency)]` (leitura, sem CSRF)
-- [ ] `PATCH /yonkou/submissions/{id}`, `POST /yonkou/submissions/{id}/reject` e `/archive` usam `dependencies=[Depends(_admin_csrf_dependency)]`
-- **Verificacao:** `pytest tests/test_security.py::test_get_submissions_requires_admin tests/test_security.py::test_patch_submission_requires_csrf tests/test_security.py::test_reject_and_archive_submission -x`
-- **Nota:** `promote`/`publish-next` (Plan 16-04) cobertos por `test_submission_admin_mutations_require_csrf`, ainda RED nesta fase
-- **Threat:** Spoofing / Tampering — sessao roubada/CSRF poderia forjar edicao ou transicao de status
+- [x] `GET /yonkou/submissions` usa `dependencies=[Depends(_admin_required_dependency)]` (leitura, sem CSRF)
+- [x] `PATCH /yonkou/submissions/{id}`, `POST /yonkou/submissions/{id}/reject` e `/archive` usam `dependencies=[Depends(_admin_csrf_dependency)]`
+- [x] `POST /yonkou/submissions/{id}/promote` e `POST /yonkou/releases/publish-next` (Plan 16-04) tambem usam `dependencies=[Depends(_admin_csrf_dependency)]`
+- **Verificacao:** `pytest tests/test_security.py::test_get_submissions_requires_admin tests/test_security.py::test_patch_submission_requires_csrf tests/test_security.py::test_reject_and_archive_submission tests/test_security.py::test_submission_admin_mutations_require_csrf -x`
+- **Threat:** Spoofing / Tampering — sessao roubada/CSRF poderia forjar edicao, transicao de status ou publicacao
 
 ### SEC-SUBMIT-04 — Body size 4KB cobre o payload de cardinalidade maxima
 
@@ -283,10 +283,19 @@
 
 ### SEC-SUBMIT-06 — IDOR defense em `{submission_id}`
 
-- [ ] `PATCH /yonkou/submissions/{id}`, `POST .../reject` e `POST .../archive` validam `submission_id` contra `JOB_ID_PATTERN` ANTES de qualquer lookup no Redis
-- [ ] Id desconhecido (mas com formato valido) retorna 404
-- **Verificacao:** `grep -n "JOB_ID_PATTERN.match(submission_id)" api/main.py` (3 ocorrencias esperadas)
+- [x] `PATCH /yonkou/submissions/{id}`, `POST .../reject`, `POST .../archive` e `POST .../promote` validam `submission_id` contra `JOB_ID_PATTERN` ANTES de qualquer lookup no Redis
+- [x] Id desconhecido (mas com formato valido) retorna 404
+- **Verificacao:** `grep -n "JOB_ID_PATTERN.match(submission_id)" api/main.py` (3 ocorrencias esperadas: `patch_submission`, `_transition_submission_status` compartilhado por reject/archive, `promote_submission`)
 - **Threat:** Tampering / Information Disclosure — id malformado nao deve alcancar `_get_submission`/`_update_submission`
+
+### SEC-SUBMIT-07 — Promote/publish e um fluxo de dois passos explicito (D-06/D-07)
+
+- [x] `POST /yonkou/submissions/{id}/promote` escreve SOMENTE `featured:next` (via `_save_featured_next`) e marca a submissao `promovida` — nunca chama `_save_featured(` diretamente
+- [x] `POST /yonkou/releases/publish-next` move `featured:next` -> `featured:current`, envia o `featured:current` antigo para `featured:history` (`_append_to_history`), e limpa `featured:next` (`_clear_featured_next` faz `DELETE`, nao um `SET` com dict vazio, para que `_redis.get("featured:next")` volte `None`)
+- [x] Sem `featured:next` estagiado, `publish-next` retorna 404 (nada a publicar)
+- [x] Re-promover re-deriva `featured:next` idempotentemente a partir dos campos atuais da submissao (decisao de nivel de tarefa, Open Question #1 do 16-RESEARCH.md)
+- **Verificacao:** `pytest tests/test_security.py::test_promote_submission_writes_featured_next tests/test_security.py::test_publish_next_moves_current_to_history -x`
+- **Threat:** Tampering — publicacao imediata sem o passo de revisao intermediario violaria D-06
 
 ---
 
@@ -297,7 +306,7 @@ Estes itens estao escopados para v1.2 ou versoes futuras:
 - **CSP sem `'unsafe-inline'`** — requer remover inline styles do HTML Y2K (v1.2)
 - **Private /tmp directory por job** — `/tmp/sg_{id}/` com `os.mkdir(mode=0o700)` (v2)
 - **Job cancellation endpoint** — DELETE /jobs/{id} com auth (v2)
-- **`/yonkou/submissions/{id}/promote` e `/yonkou/releases/publish-next`** — Plan 16-04 (proxima wave desta fase)
+- **Stale `featured:next` publicado apos edicao tardia da submissao (T-16-02)** — aceito como comportamento documentado: o operador deve re-promover apos editar, antes de publicar (Plan 16-04, Open Question #1)
 
 ---
 
@@ -352,3 +361,4 @@ done
 | Phase 7 | Infrastructure Security | Redis auth enforcement (DEV_MODE bypass), HSTS via FastAPI middleware, Railway PaaS deploy (railway.toml), HTTPS automatico Railway |
 | Phase 11 | Som da Semana | `/featured` e `/yonkou` rate-limited, `ADMIN_PASSWORD`, cookie assinado HttpOnly SameSite, validacao Pydantic D-03, Redis `featured:current` com JSON fallback, renderizacao `textContent` e `noopener` |
 | Phase 16 (16-03) | Submissoes publicas + curadoria | `POST /submissions` rate-limited 3/hora + honeypot silencioso + resposta sem contato; `GET /yonkou/submissions` (auth-only); `PATCH .../{id}`, `POST .../{id}/reject`, `POST .../{id}/archive` (CSRF); IDOR defense via `JOB_ID_PATTERN` antes do lookup |
+| Phase 16 (16-04) | Promote/publish (D-06/D-07) | `POST /yonkou/submissions/{id}/promote` (CSRF, 20/min) escreve somente `featured:next`; `POST /yonkou/releases/publish-next` (CSRF, 10/min) move `featured:next` -> `featured:current` e envia o antigo current para `featured:history`; `_clear_featured_next` usa `DELETE` (nao `SET` vazio) para o contrato de `None` |
