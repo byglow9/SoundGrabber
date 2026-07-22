@@ -27,7 +27,7 @@ from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, field_validator, model_validator
 
 from api.config import settings
 from api.tasks import celery_app, process_job, JobFailure, analyze_local_file
@@ -44,6 +44,15 @@ UPDATES_HISTORY_MAX = 50
 UPDATE_CATEGORIES = {"audio", "analise", "sistema", "em_breve"}
 ADMIN_COOKIE_NAME = "sg_admin"
 ADMIN_SESSION_MAX_AGE = 60 * 60 * 24 * 7
+# Phase 16 (SUBMIT-09/D-02): submissoes persistem em Hash (dado completo por id)
+# + Sorted Set (ordenacao por created_at_epoch) — diferente do featured:history
+# (List append-only), pois submissoes sao mutaveis e status-tracked.
+SUBMISSIONS_DATA_KEY = "submissions:data"
+SUBMISSIONS_INDEX_KEY = "submissions:index"
+SUBMISSION_TERMINAL_STATUSES = {"rejeitada", "arquivada"}
+# Phase 16 (SUBMIT-06/D-06): release promovido, aguardando publicacao explicita
+# via /yonkou/releases/publish-next (Plan 16-04) — nao toca featured:current.
+FEATURED_NEXT_KEY = "featured:next"
 
 # Module-level Redis client — connection pool reused across requests.
 _redis = redis_lib.from_url(settings.redis_url, decode_responses=True)
@@ -105,37 +114,47 @@ limiter = Limiter(
 )
 
 
+def _normalize_youtube_url(v: str) -> str:
+    """Valida e normaliza uma URL do YouTube para https://www.youtube.com/watch?v=ID.
+
+    Logica compartilhada por JobRequest.must_be_youtube e
+    SubmissionRequest.youtube_url_required (Phase 16 / D-11) — extraida para
+    funcao modulo-level para evitar duplicacao entre os dois modelos.
+    """
+    parsed = urlparse(v.strip())
+    if parsed.scheme not in ("http", "https"):
+        raise ValueError("URL must use http or https")
+    if parsed.netloc not in YOUTUBE_HOSTS:
+        raise ValueError(
+            f"URL must be a YouTube link (got: {parsed.netloc or '(empty)'})"
+        )
+
+    # Normaliza para https://www.youtube.com/watch?v=ID — descarta list=, si=,
+    # start_radio= e quaisquer outros parâmetros que causam rejeição no yt-dlp
+    # quando noplaylist=True está ativo.
+    if parsed.netloc == "youtu.be":
+        # youtu.be/VIDEO_ID[?qualquer_coisa]
+        video_id = parsed.path.lstrip("/").split("/")[0]
+    else:
+        # youtube.com/watch?v=VIDEO_ID[&list=...&outros]
+        video_id = parse_qs(parsed.query).get("v", [None])[0]
+
+    if not video_id or len(video_id) != 11:
+        raise ValueError(
+            "Não foi possível identificar o vídeo na URL. "
+            "Use o link direto do vídeo (ex: youtube.com/watch?v=ID)."
+        )
+
+    return f"https://www.youtube.com/watch?v={video_id}"
+
+
 class JobRequest(BaseModel):
     youtube_url: str
 
     @field_validator("youtube_url")
     @classmethod
     def must_be_youtube(cls, v: str) -> str:
-        parsed = urlparse(v.strip())
-        if parsed.scheme not in ("http", "https"):
-            raise ValueError("URL must use http or https")
-        if parsed.netloc not in YOUTUBE_HOSTS:
-            raise ValueError(
-                f"URL must be a YouTube link (got: {parsed.netloc or '(empty)'})"
-            )
-
-        # Normaliza para https://www.youtube.com/watch?v=ID — descarta list=, si=,
-        # start_radio= e quaisquer outros parâmetros que causam rejeição no yt-dlp
-        # quando noplaylist=True está ativo.
-        if parsed.netloc == "youtu.be":
-            # youtu.be/VIDEO_ID[?qualquer_coisa]
-            video_id = parsed.path.lstrip("/").split("/")[0]
-        else:
-            # youtube.com/watch?v=VIDEO_ID[&list=...&outros]
-            video_id = parse_qs(parsed.query).get("v", [None])[0]
-
-        if not video_id or len(video_id) != 11:
-            raise ValueError(
-                "Não foi possível identificar o vídeo na URL. "
-                "Use o link direto do vídeo (ex: youtube.com/watch?v=ID)."
-            )
-
-        return f"https://www.youtube.com/watch?v={video_id}"
+        return _normalize_youtube_url(v)
 
 
 class FeaturedArtist(BaseModel):
@@ -231,6 +250,164 @@ class FeaturedReleaseRequest(BaseModel):
     def max_four_links(cls, value: list[FeaturedLink]) -> list[FeaturedLink]:
         if len(value) > 4:
             raise ValueError("Featured release supports at most four links")
+        return value
+
+
+# Phase 16 (SUBMIT-02/SEC-SUBMIT-04): modelos PUBLICOS da submissao "Participar do
+# Som da Semana". Distintos de FeaturedArtist/FeaturedLink (que mantem seus caps
+# admin 200/500) com caps MAIS APERTADOS (nome<=100/url<=200, label<=30/url<=220)
+# para que o payload de cardinalidade maxima (3 artistas + 1 produtor + 4 links,
+# todos os campos no cap) fique medido em 3726 bytes — abaixo de _MAX_BODY_BYTES=4096
+# (Pitfall 2). NAO reutilizar FeaturedArtist/FeaturedLink aqui.
+class SubmissionArtist(BaseModel):
+    nome: str
+    url: str = ""
+
+    @field_validator("nome")
+    @classmethod
+    def nome_required(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("Artist name is required")
+        if len(value) > 100:
+            raise ValueError("Artist name must be 100 characters or less")
+        return value
+
+    @field_validator("url")
+    @classmethod
+    def url_optional_http(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            return value
+        parsed = urlparse(value)
+        if parsed.scheme not in ("http", "https") or not parsed.netloc:
+            raise ValueError("Artist URL must use http or https")
+        if len(value) > 200:
+            raise ValueError("Artist URL must be 200 characters or less")
+        return value
+
+
+class SubmissionLink(BaseModel):
+    label: str
+    url: str
+
+    @field_validator("label")
+    @classmethod
+    def label_required(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("Link label is required")
+        if len(value) > 30:
+            raise ValueError("Link label must be 30 characters or less")
+        return value
+
+    @field_validator("url")
+    @classmethod
+    def url_must_be_http(cls, value: str) -> str:
+        value = value.strip()
+        parsed = urlparse(value)
+        if parsed.scheme not in ("http", "https") or not parsed.netloc:
+            raise ValueError("Link URL must use http or https")
+        if len(value) > 220:
+            raise ValueError("Link URL must be 220 characters or less")
+        return value
+
+
+class SubmissionContact(BaseModel):
+    """D-08: pelo menos um canal de contato e obrigatorio.
+
+    Primeiro model_validator(mode="after") do projeto — os field_validator
+    individuais nao conseguem expressar uma regra "pelo menos um dos tres".
+    """
+
+    instagram: str = ""
+    telefone: str = ""
+    email: str = ""
+
+    @field_validator("instagram", "telefone", "email")
+    @classmethod
+    def contact_field_capped(cls, value: str) -> str:
+        value = value.strip()
+        if len(value) > 150:
+            raise ValueError("Contact fields must be 150 characters or less")
+        return value
+
+    @model_validator(mode="after")
+    def at_least_one_contact(self) -> "SubmissionContact":
+        if not (self.instagram or self.telefone or self.email):
+            raise ValueError(
+                "Informe pelo menos um contato: instagram, telefone ou email"
+            )
+        return self
+
+
+class SubmissionRequest(BaseModel):
+    """Payload publico de 'Participar do Som da Semana' (SUBMIT-02/03/09).
+
+    Caps de campo E de lista (artistas<=3, produtores<=1, links<=4) sao
+    deliberadamente mais apertados que FeaturedReleaseRequest (uso admin) —
+    a combinacao mantem o payload de cardinalidade MAXIMA (todo campo no cap,
+    todo slot de lista preenchido) medido em 3726 bytes, abaixo de
+    _MAX_BODY_BYTES=4096 com 370 bytes de margem (SEC-SUBMIT-04 / Pitfall 2).
+    NAO aumentar estes caps sem re-medir o payload de cardinalidade maxima.
+    """
+
+    artistas: list[SubmissionArtist]
+    produtores: list[SubmissionArtist] = []
+    titulo: str
+    genero: str
+    descricao: str
+    youtube_url: str
+    links: list[SubmissionLink] = []
+    contato: SubmissionContact
+    website: str = ""  # honeypot decoy (D-03/Pitfall 3) — endpoint (Plan 16-03) descarta silenciosamente
+
+    @field_validator("titulo", "genero")
+    @classmethod
+    def short_text_required(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("Field cannot be empty")
+        if len(value) > 150:
+            raise ValueError("Field must be 150 characters or less")
+        return value
+
+    @field_validator("descricao")
+    @classmethod
+    def descricao_required(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("Description cannot be empty")
+        if len(value) > 350:
+            raise ValueError("Description must be 350 characters or less")
+        return value
+
+    @field_validator("youtube_url")
+    @classmethod
+    def youtube_url_required(cls, value: str) -> str:
+        return _normalize_youtube_url(value)
+
+    @field_validator("artistas")
+    @classmethod
+    def artistas_required(cls, value: list) -> list:
+        if not value:
+            raise ValueError("At least one artist is required")
+        if len(value) > 3:
+            raise ValueError("Submission supports at most 3 artists")
+        return value
+
+    @field_validator("produtores")
+    @classmethod
+    def max_one_produtor(cls, value: list) -> list:
+        if len(value) > 1:
+            raise ValueError("Submission supports at most 1 producer")
+        return value
+
+    @field_validator("links")
+    @classmethod
+    def max_four_links(cls, value: list[SubmissionLink]) -> list[SubmissionLink]:
+        if len(value) > 4:
+            raise ValueError("Submission supports at most four links")
         return value
 
 
@@ -498,6 +675,52 @@ def _save_featured(payload: dict) -> None:
     _write_featured_fallback(payload)
 
 
+def _featured_next_fallback_path() -> Path:
+    return Path(_os.environ.get("FEATURED_NEXT_PATH", settings.featured_next_path))
+
+
+def _read_featured_next_fallback() -> dict | None:
+    path = _featured_next_fallback_path()
+    if not path.exists():
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        logger.exception("featured next fallback read failed")
+        return None
+    return data if isinstance(data, dict) and data else None
+
+
+def _write_featured_next_fallback(payload: dict) -> None:
+    _write_json_private(_featured_next_fallback_path(), payload)
+
+
+def _load_featured_next() -> dict | None:
+    """Phase 16 (SUBMIT-06/D-06): release promovido, aguardando publish-next (Plan 16-04)."""
+    try:
+        raw = _redis.get(FEATURED_NEXT_KEY)
+    except (redis_lib.exceptions.ConnectionError, redis_lib.exceptions.TimeoutError):
+        return _read_featured_next_fallback()
+    if not raw:
+        return None
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        logger.exception("featured next redis payload is invalid JSON")
+        return None
+    return data if isinstance(data, dict) and data else None
+
+
+def _save_featured_next(payload: dict) -> None:
+    raw = json.dumps(payload, ensure_ascii=False)
+    try:
+        _redis.set(FEATURED_NEXT_KEY, raw)
+    except (redis_lib.exceptions.ConnectionError, redis_lib.exceptions.TimeoutError):
+        _write_featured_next_fallback(payload)
+        return
+    _write_featured_next_fallback(payload)
+
+
 def _admin_serializer() -> URLSafeTimedSerializer:
     secret = settings.admin_session_secret
     if not secret:
@@ -572,6 +795,139 @@ def _system_update_document(request_body: SystemUpdateRequest) -> dict:
         "bullets": request_body.bullets,
         "data_publicacao": date.today().isoformat(),
     }
+
+
+# Phase 16 (SUBMIT-02/03/09/D-02): submissoes publicas de "Participar do Som da
+# Semana" — Hash (submissions:data, id -> JSON) + Sorted Set (submissions:index,
+# id -> created_at_epoch) para ordenacao, com fallback JSON dict-keyed. Ao
+# contrario de featured:history (List append-only), submissoes sao MUTAVEIS
+# (edicao admin, transicoes de status) — por isso Hash+ZSet, nao List.
+def _submission_document(request_body: SubmissionRequest) -> dict:
+    return {
+        "id": str(uuid.uuid4()),
+        "created_at_epoch": time.time(),
+        "data_recebida": date.today().isoformat(),
+        "status": "pendente",
+        "artistas": [a.model_dump() for a in request_body.artistas],
+        "produtores": [p.model_dump() for p in request_body.produtores],
+        "titulo": request_body.titulo,
+        "genero": request_body.genero,
+        "descricao": request_body.descricao,
+        "youtube_url": request_body.youtube_url,
+        "links": [link.model_dump() for link in request_body.links],
+        "contato": request_body.contato.model_dump(),
+    }
+
+
+def _submissions_fallback_path() -> Path:
+    return Path(_os.environ.get("SUBMISSIONS_FALLBACK_PATH", settings.submissions_fallback_path))
+
+
+def _read_submissions_fallback() -> dict[str, dict]:
+    path = _submissions_fallback_path()
+    if not path.exists():
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        logger.exception("submissions fallback read failed")
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _write_submissions_fallback(entries: dict[str, dict]) -> None:
+    _write_json_private(_submissions_fallback_path(), entries)
+
+
+def _load_submissions() -> list[dict]:
+    """Retorna todas as submissoes, mais recentes primeiro (por created_at_epoch)."""
+    try:
+        ids = _redis.zrevrange(SUBMISSIONS_INDEX_KEY, 0, -1)
+        raw_map = _redis.hgetall(SUBMISSIONS_DATA_KEY)
+    except (redis_lib.exceptions.ConnectionError, redis_lib.exceptions.TimeoutError):
+        fallback = _read_submissions_fallback()
+        return sorted(
+            fallback.values(), key=lambda d: d.get("created_at_epoch", 0), reverse=True
+        )
+    docs = []
+    for submission_id in ids:
+        raw = raw_map.get(submission_id)
+        if not raw:
+            continue
+        try:
+            docs.append(json.loads(raw))
+        except json.JSONDecodeError:
+            logger.exception("submission redis payload is invalid JSON: %s", submission_id)
+    return docs
+
+
+def _get_submission(submission_id: str) -> dict | None:
+    try:
+        raw = _redis.hget(SUBMISSIONS_DATA_KEY, submission_id)
+    except (redis_lib.exceptions.ConnectionError, redis_lib.exceptions.TimeoutError):
+        return _read_submissions_fallback().get(submission_id)
+    if not raw:
+        return None
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        logger.exception("submission redis payload is invalid JSON: %s", submission_id)
+        return None
+
+
+def _delete_submission(submission_id: str) -> None:
+    try:
+        _redis.hdel(SUBMISSIONS_DATA_KEY, submission_id)
+        _redis.zrem(SUBMISSIONS_INDEX_KEY, submission_id)
+    except (redis_lib.exceptions.ConnectionError, redis_lib.exceptions.TimeoutError):
+        pass
+    fallback = _read_submissions_fallback()
+    if fallback.pop(submission_id, None) is not None:
+        _write_submissions_fallback(fallback)
+
+
+def _enforce_submissions_cap() -> None:
+    """D-02/Pitfall 4: evicta somente entradas terminais (rejeitada/arquivada)
+    quando o total excede settings.submissions_cap. Pendente/Promovida NUNCA
+    sao evictadas — se o excedente for causado apenas por entradas nao-terminais,
+    o cap simplesmente eh ultrapassado (soft-overflow)."""
+    docs = _load_submissions()  # mais recente primeiro
+    overflow = len(docs) - settings.submissions_cap
+    if overflow <= 0:
+        return
+    # entradas terminais, da mais antiga para a mais nova
+    terminal_oldest_first = [
+        doc for doc in reversed(docs) if doc.get("status") in SUBMISSION_TERMINAL_STATUSES
+    ]
+    for doc in terminal_oldest_first[:overflow]:
+        _delete_submission(doc["id"])
+
+
+def _save_submission(doc: dict) -> None:
+    raw = json.dumps(doc, ensure_ascii=False)
+    try:
+        _redis.hset(SUBMISSIONS_DATA_KEY, doc["id"], raw)
+        _redis.zadd(SUBMISSIONS_INDEX_KEY, {doc["id"]: doc["created_at_epoch"]})
+    except (redis_lib.exceptions.ConnectionError, redis_lib.exceptions.TimeoutError):
+        pass
+    _enforce_submissions_cap()
+    fallback = _read_submissions_fallback()
+    fallback[doc["id"]] = doc
+    _write_submissions_fallback(fallback)
+
+
+def _update_submission(doc: dict) -> None:
+    """Edicao em-lugar ou transicao de status. Nao altera o score no ZSet
+    (created_at_epoch original — ordenacao por data de recebimento e preservada)."""
+    raw = json.dumps(doc, ensure_ascii=False)
+    try:
+        _redis.hset(SUBMISSIONS_DATA_KEY, doc["id"], raw)
+    except (redis_lib.exceptions.ConnectionError, redis_lib.exceptions.TimeoutError):
+        pass
+    fallback = _read_submissions_fallback()
+    fallback[doc["id"]] = doc
+    _write_submissions_fallback(fallback)
+    _enforce_submissions_cap()
 
 
 _KNOWN_LINK_LABELS = ["Youtube", "Soundcloud", "Spotify", "Instagram"]
