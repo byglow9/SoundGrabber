@@ -18,6 +18,10 @@ volumes:
       type: tmpfs
       device: tmpfs
       o: "size=512m,mode=1777"
+  redis_data:
+    driver: local
+    # Persistência real do Redis (AOF). Sem isto, um restart do container apaga
+    # tudo que só existia em memória — foi o que causou a perda de dados de 2026-09-10.
 
 services:
 
@@ -33,9 +37,14 @@ services:
         exec redis-server
         --requirepass "$${REDIS_PASSWORD}"
         --maxmemory 128mb
-        --maxmemory-policy allkeys-lru
-        --save ""
-        --appendonly no
+        --maxmemory-policy noeviction
+        --save 3600 1
+        --appendonly yes
+        --appendfsync everysec
+        --auto-aof-rewrite-percentage 100
+        --auto-aof-rewrite-min-size 32mb
+    volumes:
+      - redis_data:/data
     networks:
       - soundgrabber_net
     # Sem ports: — Redis apenas na rede interna (D-10, D-14)
