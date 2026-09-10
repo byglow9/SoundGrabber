@@ -132,8 +132,11 @@ ok "docker-compose validado."
 
 log "Rodando pip-audit..."
 # CVEs aceitos temporariamente: yt-dlp 2026.3.17 acumula achados (IDs abaixo),
-# todos corrigidos em 2026.6.9. Enquanto o bump do yt-dlp nao e validado no
+# corrigidos em 2026.6.9/2026.7.4. Enquanto o bump do yt-dlp nao e validado no
 # pipeline de download, estes IDs sao ignorados para nao travar o deploy.
+# PYSEC-2026-3622 (CVE-2026-55404) e injecao de comando via --write-link
+# (arquivos .desktop/.url/.webloc nao sanitizados) — o pipeline nunca usa essa
+# opcao, logo nao e exploravel aqui. Ignorado em 2026-09-10.
 # IMPORTANTE: qualquer vuln NOVA (em qualquer dependencia, inclusive um CVE novo
 # do yt-dlp) continua bloqueando o deploy. Decisao registrada em STATE.md.
 PIP_AUDIT_IGNORES=(
@@ -141,6 +144,7 @@ PIP_AUDIT_IGNORES=(
     --ignore-vuln PYSEC-2026-3431
     --ignore-vuln PYSEC-2026-3433
     --ignore-vuln GHSA-69qj-pvh9-c5wg
+    --ignore-vuln PYSEC-2026-3622
 )
 "$PIP_AUDIT_BIN" --cache-dir /tmp/soundgrabber-pip-audit-cache "${PIP_AUDIT_IGNORES[@]}" -r requirements.txt
 ok "pip-audit sem achados bloqueantes (CVEs conhecidos do yt-dlp ignorados; ver STATE.md)."
