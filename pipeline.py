@@ -197,8 +197,10 @@ def check_duration(url: str, cache_dir: str) -> dict[str, Any]:
     bgutil_base_url = os.environ.get("BGUTIL_BASE_URL", "")
     # Clientes web requerem PO Token; bgutil 0.8.x suporta web_safari e web.
     # mweb primeiro: YouTube forca SABR-only (sem URL HTTPS) em web/web_safari desde ~ago/2026
-    # (yt-dlp#12482); mweb com PO Token ainda expoe formatos HTTPS normais.
-    player_clients = ["mweb", "web_safari", "web"] if bgutil_base_url else ["android"]
+    # (yt-dlp#12482); mweb com PO Token ainda expoe formatos HTTPS normais. tv como fallback
+    # extra — alguns videos retornam LOGIN_REQUIRED em mweb/web_safari/web mas nao em tv
+    # (yt-dlp#17603/#15865, front ainda ativo da guerra yt-dlp vs YouTube em set/2026).
+    player_clients = ["mweb", "web_safari", "web", "tv"] if bgutil_base_url else ["android"]
     youtube_extractor_args: dict[str, dict[str, list[str]]] = {
         "youtube": {"player_client": player_clients},
     }
@@ -303,7 +305,7 @@ def download_audio(url: str, cache_dir: str) -> Path:
     # Clientes web requerem PO Token; bgutil 0.8.x suporta web_safari e web.
     # mweb primeiro: YouTube forca SABR-only (sem URL HTTPS) em web/web_safari desde ~ago/2026
     # (yt-dlp#12482); mweb com PO Token ainda expoe formatos HTTPS normais.
-    dl_players = ["mweb", "web_safari", "web"] if bgutil_base_url else ["android"]
+    dl_players = ["mweb", "web_safari", "web", "tv"] if bgutil_base_url else ["android"]
     extractor_args: dict[str, dict[str, list[str]]] = {
         "youtube": {"player_client": dl_players},
     }
