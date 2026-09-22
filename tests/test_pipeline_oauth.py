@@ -103,7 +103,7 @@ def test_check_duration_hybrid_with_bgutil_and_cookies(tmp_path, monkeypatch):
         f"plan-06: base_url deveria estar em extractor_args.youtubepot-bgutilhttp. "
         f"extractor_args obtido: {extractor_args!r}"
     )
-    assert youtube_args.get("player_client") == ["web_safari", "web"], (
+    assert youtube_args.get("player_client") == ["mweb", "web_safari", "web"], (
         "plan-06: player_client=web_safari,web deve ser usado quando bgutil presente."
     )
 
@@ -235,7 +235,7 @@ def test_download_audio_hybrid_with_bgutil_and_cookies(tmp_path, monkeypatch):
         f"plan-06: base_url deveria estar em extractor_args.youtubepot-bgutilhttp de download_audio. "
         f"extractor_args obtido: {extractor_args!r}"
     )
-    assert youtube_args.get("player_client") == ["web_safari", "web"], (
+    assert youtube_args.get("player_client") == ["mweb", "web_safari", "web"], (
         "plan-06: player_client=web_safari,web deve ser usado em download_audio quando bgutil presente."
     )
 

@@ -96,7 +96,7 @@ def test_download_opts_include_auth(monkeypatch, tmp_path):
     extractor_args = captured_opts.get("extractor_args", {})
     yt_args = extractor_args.get("youtube", {})
     assert isinstance(yt_args, dict), f"extractor_args.youtube must be dict, got {type(yt_args)}"
-    assert yt_args.get("player_client") == ["web_safari", "web"], f"player_client not set correctly: {yt_args}"
+    assert yt_args.get("player_client") == ["mweb", "web_safari", "web"], f"player_client not set correctly: {yt_args}"
     bgutil_args = extractor_args.get("youtubepot-bgutilhttp", {})
     assert bgutil_args.get("base_url") == ["https://bgutil-test.example.com"], \
         f"base_url not in extractor_args.youtubepot-bgutilhttp: {bgutil_args}"
