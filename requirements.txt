@@ -1,4 +1,4 @@
-yt-dlp==2026.3.17
+yt-dlp==2026.08.19
 soundfile==0.13.1
 numpy>=2.0,<3.0
 scipy>=1.10
