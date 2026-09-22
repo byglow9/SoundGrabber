@@ -14,4 +14,4 @@ itsdangerous==2.2.0
 python-multipart>=0.0.9
 httpx>=0.27
 essentia==2.1b6.dev1389
-bgutil-ytdlp-pot-provider==0.8.1
+bgutil-ytdlp-pot-provider==1.3.2
