@@ -1,14 +1,17 @@
 FROM python:3.11-slim
 
-# Phase 13 D-04..D-07: slim Python base with system ffmpeg/ffprobe and Node 20.
-# Debian bookworm's default nodejs is 18.x, so NodeSource is used for Node >=20.
+# Phase 13 D-04..D-07: slim Python base with system ffmpeg/ffprobe and Node 22.
+# Debian bookworm's default nodejs is 18.x, so NodeSource is used for Node >=22.
+# yt-dlp's EJS signature/n-challenge solver requires Node >=22.6 (Node 20 is
+# rejected as "unsupported" at runtime, causing "Requested format is not
+# available" for every YouTube client — yt-dlp/yt-dlp#15012).
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         ffmpeg \
         curl \
         libsndfile1 \
         ca-certificates \
-    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
     && apt-get install -y --no-install-recommends nodejs \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
