@@ -130,27 +130,29 @@ def test_deploy01_nixpacks_toml_exists_with_ffmpeg():
 
 
 def test_bgutil_present_in_check_duration():
-    """plan-06: check_duration deve conter getpot_bgutil_baseurl (reintroduzido no gap closure).
+    """plan-06: check_duration deve conter youtubepot-bgutilhttp (reintroduzido no gap closure).
 
     A Wave 2 removeu bgutil; o gap closure plan 06 reintroduz via extractor_args para
-    arquitetura hibrida (cookies do Volume + bgutil PO Token).
+    arquitetura hibrida (cookies do Volume + bgutil PO Token). Chave migrada de
+    "youtube:getpot_bgutil_baseurl" (deprecada no plugin 0.8.x) para
+    "youtubepot-bgutilhttp:base_url" (plugin 1.3.2+).
     """
     src = inspect.getsource(pipeline.check_duration)
-    assert "getpot_bgutil_baseurl" in src, (
-        "plan-06: getpot_bgutil_baseurl deve estar em check_duration. "
+    assert "youtubepot-bgutilhttp" in src, (
+        "plan-06: youtubepot-bgutilhttp deve estar em check_duration. "
         "Gap closure plan 06 reintroduz bgutil via extractor_args para arquitetura hibrida."
     )
 
 
 def test_bgutil_present_in_download_audio():
-    """plan-06: download_audio deve conter getpot_bgutil_baseurl (reintroduzido no gap closure).
+    """plan-06: download_audio deve conter youtubepot-bgutilhttp (reintroduzido no gap closure).
 
     Probe PIPE-06 (httpx.get) e BgutilUnavailable permanecem removidos — apenas
-    o extractor_args com getpot_bgutil_baseurl e reintroduzido.
+    o extractor_args com youtubepot-bgutilhttp e reintroduzido.
     """
     src = inspect.getsource(pipeline.download_audio)
-    assert "getpot_bgutil_baseurl" in src, (
-        "plan-06: getpot_bgutil_baseurl deve estar em download_audio. "
+    assert "youtubepot-bgutilhttp" in src, (
+        "plan-06: youtubepot-bgutilhttp deve estar em download_audio. "
         "Gap closure plan 06 reintroduz bgutil via extractor_args."
     )
     assert "BgutilUnavailable" not in src, (

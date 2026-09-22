@@ -97,8 +97,9 @@ def test_download_opts_include_auth(monkeypatch, tmp_path):
     yt_args = extractor_args.get("youtube", {})
     assert isinstance(yt_args, dict), f"extractor_args.youtube must be dict, got {type(yt_args)}"
     assert yt_args.get("player_client") == ["web_safari", "web"], f"player_client not set correctly: {yt_args}"
-    assert yt_args.get("getpot_bgutil_baseurl") == ["https://bgutil-test.example.com"], \
-        f"getpot_bgutil_baseurl not in extractor_args.youtube: {yt_args}"
+    bgutil_args = extractor_args.get("youtubepot-bgutilhttp", {})
+    assert bgutil_args.get("base_url") == ["https://bgutil-test.example.com"], \
+        f"base_url not in extractor_args.youtubepot-bgutilhttp: {bgutil_args}"
 
 
 def test_download_opts_preserve_audio_quality_contract(monkeypatch, tmp_path):

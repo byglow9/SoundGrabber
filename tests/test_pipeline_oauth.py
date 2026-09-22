@@ -96,10 +96,12 @@ def test_check_duration_hybrid_with_bgutil_and_cookies(tmp_path, monkeypatch):
         pipeline.check_duration("https://www.youtube.com/watch?v=test", str(tmp_path))
 
     _assert_writable_cookie_copy(captured_opts, cookies)
-    youtube_args = captured_opts.get("extractor_args", {}).get("youtube", {})
-    assert youtube_args.get("getpot_bgutil_baseurl") == ["https://bgutil-test.example.com"], (
-        f"plan-06: getpot_bgutil_baseurl deveria estar em extractor_args.youtube. "
-        f"extractor_args obtido: {captured_opts.get('extractor_args')!r}"
+    extractor_args = captured_opts.get("extractor_args", {})
+    youtube_args = extractor_args.get("youtube", {})
+    bgutil_args = extractor_args.get("youtubepot-bgutilhttp", {})
+    assert bgutil_args.get("base_url") == ["https://bgutil-test.example.com"], (
+        f"plan-06: base_url deveria estar em extractor_args.youtubepot-bgutilhttp. "
+        f"extractor_args obtido: {extractor_args!r}"
     )
     assert youtube_args.get("player_client") == ["web_safari", "web"], (
         "plan-06: player_client=web_safari,web deve ser usado quando bgutil presente."
@@ -226,10 +228,12 @@ def test_download_audio_hybrid_with_bgutil_and_cookies(tmp_path, monkeypatch):
             pass
 
     _assert_writable_cookie_copy(captured_opts, cookies)
-    youtube_args = captured_opts.get("extractor_args", {}).get("youtube", {})
-    assert youtube_args.get("getpot_bgutil_baseurl") == ["https://bgutil-test.example.com"], (
-        f"plan-06: getpot_bgutil_baseurl deveria estar em extractor_args.youtube de download_audio. "
-        f"extractor_args obtido: {captured_opts.get('extractor_args')!r}"
+    extractor_args = captured_opts.get("extractor_args", {})
+    youtube_args = extractor_args.get("youtube", {})
+    bgutil_args = extractor_args.get("youtubepot-bgutilhttp", {})
+    assert bgutil_args.get("base_url") == ["https://bgutil-test.example.com"], (
+        f"plan-06: base_url deveria estar em extractor_args.youtubepot-bgutilhttp de download_audio. "
+        f"extractor_args obtido: {extractor_args!r}"
     )
     assert youtube_args.get("player_client") == ["web_safari", "web"], (
         "plan-06: player_client=web_safari,web deve ser usado em download_audio quando bgutil presente."
@@ -287,16 +291,16 @@ def test_check_oauth_cache_critical_when_no_file(caplog, tmp_path):
 
 
 def test_requirements_has_bgutil():
-    """plan-06: bgutil-ytdlp-pot-provider==0.8.1 deve estar em requirements.txt (alinhado ao servidor)."""
+    """plan-06: bgutil-ytdlp-pot-provider==1.3.2 deve estar em requirements.txt (alinhado ao servidor)."""
     req_path = Path(__file__).parent.parent / "requirements.txt"
     assert req_path.exists(), (
         f"requirements.txt nao encontrado em {req_path}. "
         "O arquivo deve existir na raiz do projeto."
     )
     content = req_path.read_text()
-    assert "bgutil-ytdlp-pot-provider==0.8.1" in content, (
-        "plan-06: bgutil-ytdlp-pot-provider==0.8.1 deve estar em requirements.txt. "
-        "Re-adicionado no gap closure plan 06 para arquitetura hibrida (cookies + bgutil)."
+    assert "bgutil-ytdlp-pot-provider==1.3.2" in content, (
+        "plan-06: bgutil-ytdlp-pot-provider==1.3.2 deve estar em requirements.txt. "
+        "0.8.1 quebra com yt-dlp>=2026.08.19 (ImportError: select_proxy)."
     )
 
 

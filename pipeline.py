@@ -197,9 +197,13 @@ def check_duration(url: str, cache_dir: str) -> dict[str, Any]:
     bgutil_base_url = os.environ.get("BGUTIL_BASE_URL", "")
     # Clientes web requerem PO Token; bgutil 0.8.x suporta web_safari e web.
     player_clients = ["web_safari", "web"] if bgutil_base_url else ["android"]
-    youtube_args: dict[str, list[str]] = {"player_client": player_clients}
+    youtube_extractor_args: dict[str, dict[str, list[str]]] = {
+        "youtube": {"player_client": player_clients},
+    }
     if bgutil_base_url:
-        youtube_args["getpot_bgutil_baseurl"] = [bgutil_base_url]
+        # bgutil-ytdlp-pot-provider >=1.x usa a chave do provider (youtubepot-bgutilhttp),
+        # não mais "youtube:getpot_bgutil_baseurl" (deprecado no plugin 0.8.x).
+        youtube_extractor_args["youtubepot-bgutilhttp"] = {"base_url": [bgutil_base_url]}
     ydl_opts: dict[str, Any] = {
         "quiet": True,
         "no_warnings": True,
@@ -209,7 +213,7 @@ def check_duration(url: str, cache_dir: str) -> dict[str, Any]:
         "no_cache_dir": True,           # D-04: prevent stale nsig between deploys/restarts
         "ffmpeg_location": _YTDLP_FFMPEG_LOCATION,  # executable path — see _YTDLP_FFMPEG_LOCATION
         # yt-dlp Python API expects nested extractor args, unlike the CLI string format.
-        "extractor_args": {"youtube": youtube_args},
+        "extractor_args": youtube_extractor_args,
     }
     logger.warning(
         "AUTH: check_duration bgutil_base_url=%s player_client=%s",
@@ -296,10 +300,13 @@ def download_audio(url: str, cache_dir: str) -> Path:
     bgutil_base_url = os.environ.get("BGUTIL_BASE_URL", "")
     # Clientes web requerem PO Token; bgutil 0.8.x suporta web_safari e web.
     dl_players = ["web_safari", "web"] if bgutil_base_url else ["android"]
-    youtube_args: dict[str, list[str]] = {"player_client": dl_players}
+    extractor_args: dict[str, dict[str, list[str]]] = {
+        "youtube": {"player_client": dl_players},
+    }
     if bgutil_base_url:
-        youtube_args["getpot_bgutil_baseurl"] = [bgutil_base_url]
-    extractor_args: dict[str, dict[str, list[str]]] = {"youtube": youtube_args}
+        # bgutil-ytdlp-pot-provider >=1.x usa a chave do provider (youtubepot-bgutilhttp),
+        # não mais "youtube:getpot_bgutil_baseurl" (deprecado no plugin 0.8.x).
+        extractor_args["youtubepot-bgutilhttp"] = {"base_url": [bgutil_base_url]}
     logger.warning(
         "AUTH: download_audio bgutil_base_url=%s player_client=%s",
         "set" if bgutil_base_url else "empty",
